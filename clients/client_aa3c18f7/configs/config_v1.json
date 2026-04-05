@@ -1,0 +1,363 @@
+{
+  "integrations": [
+    {
+      "integration_id": "int_karza",
+      "field_mapping": [
+        {
+          "user_field": "aadhaar_uid",
+          "api_field": "aadhaar_number",
+          "mapping_type": "rename",
+          "description": "Maps user Aadhaar UID to Karza Aadhaar number field"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to Karza PAN number field"
+        },
+        {
+          "user_field": "kyc_consent_flag",
+          "api_field": "consent",
+          "mapping_type": "rename",
+          "description": "Maps user consent flag to Karza consent boolean"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "aadhaar_uid",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field before transmission",
+          "example": "encrypt(aadhaar_uid) -> aadhaar_number"
+        },
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field before transmission",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "field_mapping": [
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to CIBIL PAN number"
+        },
+        {
+          "user_field": "applicant_full_name",
+          "api_field": "full_name",
+          "mapping_type": "rename",
+          "description": "Maps user full name to CIBIL full name"
+        },
+        {
+          "user_field": "dob_dd_mm_yyyy",
+          "api_field": "date_of_birth",
+          "mapping_type": "format",
+          "description": "Maps user DOB to CIBIL ISO 8601 date"
+        },
+        {
+          "user_field": "applicant_phone",
+          "api_field": "mobile_number",
+          "mapping_type": "rename",
+          "description": "Maps user phone to CIBIL mobile number"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "dob_dd_mm_yyyy",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD-MM-YYYY to YYYY-MM-DD",
+          "example": "format(12-05-1990) -> 1990-05-12"
+        },
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_perfios_001",
+      "field_mapping": [
+        {
+          "user_field": "savings_account_num",
+          "api_field": "account_number",
+          "mapping_type": "rename",
+          "description": "Maps user account number to Perfios account number"
+        },
+        {
+          "user_field": "bank_branch_ifsc",
+          "api_field": "ifsc_code",
+          "mapping_type": "rename",
+          "description": "Maps user IFSC to Perfios IFSC"
+        },
+        {
+          "user_field": "customer_id",
+          "api_field": "customer_id",
+          "mapping_type": "direct",
+          "description": "Maps user customer ID to Perfios customer ID"
+        },
+        {
+          "user_field": "date_range_from",
+          "api_field": "date_range_from",
+          "mapping_type": "direct",
+          "description": "Maps user start date to Perfios start date"
+        },
+        {
+          "user_field": "date_range_to",
+          "api_field": "date_range_to",
+          "mapping_type": "direct",
+          "description": "Maps user end date to Perfios end date"
+        },
+        {
+          "user_field": "consent_artifact",
+          "api_field": "consent_artifact",
+          "mapping_type": "direct",
+          "description": "Maps user consent artifact to Perfios consent"
+        }
+      ],
+      "transformation_rules": []
+    },
+    {
+      "integration_id": "int_riskguard_001",
+      "field_mapping": [
+        {
+          "user_field": "applicant_id",
+          "api_field": "applicant_id",
+          "mapping_type": "direct",
+          "description": "Maps user applicant ID to RiskGuard applicant ID"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to RiskGuard PAN number"
+        },
+        {
+          "user_field": "applicant_phone",
+          "api_field": "mobile_number",
+          "mapping_type": "rename",
+          "description": "Maps user phone to RiskGuard mobile number"
+        },
+        {
+          "user_field": "request_ip_address",
+          "api_field": "ip_address",
+          "mapping_type": "rename",
+          "description": "Maps user IP to RiskGuard IP"
+        },
+        {
+          "user_field": "session_device_hash",
+          "api_field": "device_fingerprint",
+          "mapping_type": "rename",
+          "description": "Maps user device hash to RiskGuard fingerprint"
+        },
+        {
+          "user_field": "loan_ask_amount",
+          "api_field": "loan_amount_requested",
+          "mapping_type": "rename",
+          "description": "Maps user loan amount to RiskGuard requested amount"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "field_mapping": [
+        {
+          "user_field": "to",
+          "api_field": "to",
+          "mapping_type": "direct",
+          "description": "Maps user destination to Twilio to"
+        },
+        {
+          "user_field": "from",
+          "api_field": "from",
+          "mapping_type": "direct",
+          "description": "Maps user sender to Twilio from"
+        },
+        {
+          "user_field": "body",
+          "api_field": "body",
+          "mapping_type": "direct",
+          "description": "Maps user message body to Twilio body"
+        },
+        {
+          "user_field": "account_sid",
+          "api_field": "account_sid",
+          "mapping_type": "direct",
+          "description": "Maps user account SID to Twilio account SID"
+        }
+      ],
+      "transformation_rules": []
+    }
+  ],
+  "metadata": {
+    "config_id": "config_699499e8118b",
+    "config_version": "v1",
+    "created_at": "2026-04-05T17:31:18.582086+00:00",
+    "last_updated_at": "2026-04-05T17:34:33.929340+00:00",
+    "status": "production-ready",
+    "client": {
+      "client_id": "client_aa3c18f7",
+      "client_name": "NovaCred",
+      "industry_vertical": "NBFC / Digital Lending",
+      "region": "India",
+      "environment": "production"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "NovaCred_BRD.pdf",
+        "type": "PDF"
+      },
+      {
+        "filename": "NovaCred_SOW.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_c3afc5fc",
+      "triggered_by": "project_creation",
+      "triggered_at": "2026-04-05T17:31:18.582086+00:00",
+      "overall_status": "completed",
+      "human_review_status": "approved",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3,
+      "human_reviewer": "human_reviewer",
+      "completed_at": "2026-04-05T17:34:28.107907+00:00"
+    }
+  },
+  "simulation_report": {
+    "report_id": "sim_8c924ea0",
+    "generated_at": "2026-04-05T17:34:28.107907+00:00",
+    "overall_confidence_score": 0,
+    "overall_passed": false,
+    "total_integrations_tested": 5,
+    "passed_count": 0,
+    "failed_count": 5,
+    "human_readable_summary": "The simulation failed for all integrations because no specific adapter implementations were found, resulting in a fallback to a generic mock response. While the field mapping configurations are defined, the lack of concrete adapter IDs prevented validation of the actual data transformation logic and API connectivity.",
+    "recommended_actions": [
+      "Register and link specific adapter IDs for each integration in the configuration.",
+      "Upload or define mock response files for each integration to enable accurate validation.",
+      "Verify that the transformation rules (encryption/formatting) are correctly implemented in the target adapter environment.",
+      "Re-run the simulation after updating the adapter references."
+    ],
+    "integration_results": [
+      {
+        "integration_id": "int_karza",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 3,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "aadhaar_number",
+          "pan_number",
+          "consent"
+        ],
+        "transformation_rule_failures": [
+          "Encryption logic not verified due to missing adapter"
+        ],
+        "notes": "Adapter not found; simulation defaulted to generic mock."
+      },
+      {
+        "integration_id": "int_cibil_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "pan_number",
+          "full_name",
+          "date_of_birth",
+          "mobile_number"
+        ],
+        "transformation_rule_failures": [
+          "Format and encryption logic not verified"
+        ],
+        "notes": "Adapter not found; simulation defaulted to generic mock."
+      },
+      {
+        "integration_id": "int_perfios_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "account_number",
+          "ifsc_code",
+          "customer_id",
+          "date_range_from",
+          "date_range_to",
+          "consent_artifact"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Adapter not found; simulation defaulted to generic mock."
+      },
+      {
+        "integration_id": "int_riskguard_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "applicant_id",
+          "pan_number",
+          "mobile_number",
+          "ip_address",
+          "device_fingerprint",
+          "loan_amount_requested"
+        ],
+        "transformation_rule_failures": [
+          "Encryption logic not verified"
+        ],
+        "notes": "Adapter not found; simulation defaulted to generic mock."
+      },
+      {
+        "integration_id": "int_twilio_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "to",
+          "from",
+          "body",
+          "account_sid"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Adapter not found; simulation defaulted to generic mock."
+      }
+    ],
+    "report_file_path": "C:\\Users\\happy\\Desktop\\college\\hackathons\\FinSpark_final\\clients\\client_aa3c18f7\\simulation_reports\\simulation_report_20260405_230433.json"
+  }
+}

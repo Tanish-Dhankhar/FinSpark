@@ -1,0 +1,304 @@
+{
+  "integrations": [
+    {
+      "integration_id": "int_karza_001",
+      "field_mapping": [
+        {
+          "user_field": "Aadhaar Number",
+          "api_field": "aadhaar_number",
+          "mapping_type": "direct",
+          "description": "Maps user Aadhaar to Karza API"
+        },
+        {
+          "user_field": "PAN Number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to Karza API"
+        },
+        {
+          "user_field": "Consent to eKYC",
+          "api_field": "consent",
+          "mapping_type": "direct",
+          "description": "Maps user consent boolean"
+        },
+        {
+          "user_field": "Date of Birth",
+          "api_field": "dob",
+          "mapping_type": "direct",
+          "description": "Maps user DOB"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps user name"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "mobile_number",
+          "mapping_type": "direct",
+          "description": "Maps user mobile"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Aadhaar Number",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to Aadhaar number before transmission",
+          "example": "encrypt(aadhaar_number) -> encrypted_aadhaar"
+        },
+        {
+          "source_field": "PAN Number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PAN number before transmission",
+          "example": "encrypt(pan_number) -> encrypted_pan"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "field_mapping": [
+        {
+          "user_field": "PAN Number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to CIBIL API"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps user name to CIBIL API"
+        },
+        {
+          "user_field": "Date of Birth",
+          "api_field": "date_of_birth",
+          "mapping_type": "direct",
+          "description": "Maps user DOB to CIBIL API"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "mobile_number",
+          "mapping_type": "direct",
+          "description": "Maps user mobile to CIBIL API"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "PAN Number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PAN number",
+          "example": "encrypt(pan_number) -> encrypted_pan"
+        },
+        {
+          "source_field": "Date of Birth",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD/MM/YYYY to ISO 8601 YYYY-MM-DD",
+          "example": "01/01/1990 -> 1990-01-01"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "field_mapping": [
+        {
+          "user_field": "Loan Amount Requested",
+          "api_field": "order_amount",
+          "mapping_type": "computed",
+          "description": "Convert INR to paise"
+        },
+        {
+          "user_field": null,
+          "api_field": "currency",
+          "mapping_type": "missing",
+          "description": "Currency not specified in BRD"
+        },
+        {
+          "user_field": null,
+          "api_field": "customer_id",
+          "mapping_type": "missing",
+          "description": "Customer ID not specified in BRD"
+        },
+        {
+          "user_field": null,
+          "api_field": "order_id",
+          "mapping_type": "missing",
+          "description": "Internal Order ID not specified in BRD"
+        },
+        {
+          "user_field": null,
+          "api_field": "payment_method",
+          "mapping_type": "missing",
+          "description": "Payment method not specified in BRD"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Loan Amount Requested",
+          "target_field": "order_amount",
+          "rule_type": "compute",
+          "rule": "Multiply amount by 100 to convert INR to paise",
+          "example": "1000 INR -> 100000 paise"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "field_mapping": [
+        {
+          "user_field": "Mobile Number",
+          "api_field": "to",
+          "mapping_type": "format",
+          "description": "Format mobile number to E.164"
+        },
+        {
+          "user_field": null,
+          "api_field": "from",
+          "mapping_type": "missing",
+          "description": "Sender ID not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "body",
+          "mapping_type": "missing",
+          "description": "Message body not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "account_sid",
+          "mapping_type": "missing",
+          "description": "Account SID not provided"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Mobile Number",
+          "target_field": "to",
+          "rule_type": "format",
+          "rule": "Prepend +91 to 10-digit mobile number",
+          "example": "9876543210 -> +919876543210"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "config_id": "config_ad750134f5d7",
+    "config_version": "v1",
+    "created_at": "2026-04-05T16:24:34.321598+00:00",
+    "last_updated_at": "2026-04-05T16:44:57.599892+00:00",
+    "status": "production-ready",
+    "client": {
+      "client_id": "client_5edb96fb",
+      "client_name": "CAREFIRST",
+      "industry_vertical": "Healthcare Finance / NBFC",
+      "region": "India",
+      "environment": "production"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "CareFirst_BRD.docx",
+        "type": "DOCX"
+      },
+      {
+        "filename": "CareFirst_SOW.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_3e5448cc",
+      "triggered_by": "project_creation",
+      "triggered_at": "2026-04-05T16:24:34.321598+00:00",
+      "completed_at": "2026-04-05T16:44:52.129369+00:00",
+      "overall_status": "completed",
+      "human_review_status": "approved",
+      "human_reviewer": "human_reviewer",
+      "review_notes": null,
+      "correction_iterations": 0,
+      "max_correction_iterations": 3
+    }
+  },
+  "simulation_report": {
+    "report_id": "sim_3f252770",
+    "generated_at": "2026-04-05T16:44:52.129369+00:00",
+    "overall_confidence_score": 45,
+    "overall_passed": false,
+    "total_integrations_tested": 4,
+    "passed_count": 1,
+    "failed_count": 3,
+    "human_readable_summary": "The simulation report indicates significant gaps in integration configuration. While int_karza_001 appears structurally sound, the remaining integrations (int_razorpay_001, int_twilio_001, and int_cibil_001) suffer from critical missing mandatory fields and lack of mock data availability, preventing a successful end-to-end validation.",
+    "recommended_actions": [
+      "Define missing mandatory fields for Razorpay (currency, customer_id, order_id, payment_method) and Twilio (from, body, account_sid).",
+      "Upload mock response files for all integrations to enable accurate adapter testing.",
+      "Verify adapter_id mapping as all current tests defaulted to 'unknown'.",
+      "Review BRD documentation to ensure all required API parameters are captured in the field mapping."
+    ],
+    "integration_results": [
+      {
+        "integration_id": "int_karza_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 6,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Mapping complete, but mock data is missing."
+      },
+      {
+        "integration_id": "int_cibil_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "warning",
+        "confidence_score": 80,
+        "fields_mapped_correctly": 4,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Mapping valid but simulation failed due to missing mock response."
+      },
+      {
+        "integration_id": "int_razorpay_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 1,
+        "total_required_fields": 5,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "currency",
+          "customer_id",
+          "order_id",
+          "payment_method"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Multiple mandatory fields are missing from the configuration."
+      },
+      {
+        "integration_id": "int_twilio_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 1,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "from",
+          "body",
+          "account_sid"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Critical fields for Twilio API are missing."
+      }
+    ],
+    "report_file_path": "C:\\Users\\happy\\Desktop\\college\\hackathons\\FinSpark_final\\clients\\client_5edb96fb\\simulation_reports\\simulation_report_20260405_221457.json"
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "adapter_name": "Penny Drop / Account Verification",
+  "category": "banking",
+  "description": "Verify active Indian bank accounts by depositing 1 rupee.",
+  "provider": "Razorpay (via RazorpayX) / internal NPCI",
+  "base_url": "https://api.razorpayx.in",
+  "auth_type": "api_key",
+  "credential_env_vars": [
+    "PENNYDROP_API_KEY"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/v1/fund_accounts/verify",
+      "status": "stable",
+      "maturity_score": 8,
+      "deprecated": false,
+      "release_notes": "Stable penny drop validation via IMPS",
+      "sunset_date": "2028-06-30"
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "account_number",
+      "type": "string",
+      "description": "Customer banking account number",
+      "validation": "9 to 18 digits numeric"
+    },
+    {
+      "field_name": "ifsc_code",
+      "type": "string",
+      "description": "11 character IFSC code",
+      "validation": "11 char alphanumeric"
+    },
+    {
+      "field_name": "account_holder_name",
+      "type": "string",
+      "description": "Expected name of the customer",
+      "validation": "min length 3"
+    },
+    {
+      "field_name": "transfer_amount",
+      "type": "integer",
+      "description": "Amount to transfer in rupees (Must be 1)",
+      "validation": "fixed: 1"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "purpose",
+      "type": "string",
+      "description": "Text reason for the transfer",
+      "default_value": "Account Verification"
+    },
+    {
+      "field_name": "reference_id",
+      "type": "string",
+      "description": "Internal unique identifier",
+      "default_value": "null"
+    }
+  ],
+  "response_schema": {
+    "verification_status": {
+      "type": "enum",
+      "description": "Enum: SUCCESS/FAILED/PENDING"
+    },
+    "name_match_score": {
+      "type": "integer",
+      "description": "Fuzzy match percentage (0-100)"
+    },
+    "matched_name": {
+      "type": "string",
+      "description": "Name retrieved from the bank database"
+    },
+    "bank_response_code": {
+      "type": "string",
+      "description": "Specific code directly from IMPS"
+    },
+    "transaction_id": {
+      "type": "string",
+      "description": "Unique transaction tracking id"
+    },
+    "verified_at": {
+      "type": "date",
+      "description": "Timestamp of success"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid account number format or IFSC mismatch.",
+    "401": "Invalid API Key.",
+    "404": "IFSC routing branch not found.",
+    "429": "Too many verification requests.",
+    "500": "Underlying bank IMPS system timeout."
+  },
+  "timeout_ms": 5000,
+  "retry_policy": {
+    "max_retries": 1,
+    "backoff_strategy": "fixed"
+  },
+  "sandbox_base_url": "https://sandbox-api.razorpayx.in",
+  "fallback_adapter": null
+}

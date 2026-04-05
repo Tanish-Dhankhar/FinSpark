@@ -1,0 +1,15 @@
+{
+  "gstin": "29ABCDE1234F1Z5",
+  "legal_name": "FinNova Technologies Private Limited",
+  "trade_name": "FinNova",
+  "registration_date": "2019-07-01",
+  "taxpayer_type": "Regular",
+  "filing_status": "Active",
+  "turnover_band": "5Cr-25Cr",
+  "state_jurisdiction": "Karnataka",
+  "annual_turnover": 120000000,
+  "return_filing_history": [
+    {"period": "Jan 2026", "type": "GSTR3B", "status": "Filed", "date": "2026-02-20"},
+    {"period": "Dec 2025", "type": "GSTR3B", "status": "Filed", "date": "2026-01-18"}
+  ]
+}

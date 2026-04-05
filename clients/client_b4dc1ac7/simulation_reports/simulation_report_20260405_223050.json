@@ -1,0 +1,94 @@
+{
+  "report_id": "sim_ece384c5",
+  "generated_at": "2026-04-05T17:00:44.244208+00:00",
+  "overall_confidence_score": 60,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 3,
+  "failed_count": 2,
+  "human_readable_summary": "The integration simulation shows mixed results. While Karza, CIBIL, and Twilio integrations are functional with valid mappings, Razorpay and Aarogya Health API exhibit critical failures. Razorpay is missing mandatory field mappings, and the Aarogya Health API lacks an adapter, preventing any successful field mapping or transformation.",
+  "recommended_actions": [
+    "Implement missing field mappings for Razorpay (currency, customer_id, order_id, payment_method).",
+    "Assign a valid adapter to the Aarogya Health API integration.",
+    "Verify if the missing Twilio fields (from, body, account_sid) are intended to be dynamic or hardcoded.",
+    "Perform a secondary validation pass after updating the integration configuration."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "adapter_id": "razorpay",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 20,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "currency",
+        "customer_id",
+        "order_id",
+        "payment_method"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Multiple mandatory fields are missing from the mapping configuration."
+    },
+    {
+      "integration_id": "int_aarogya_001",
+      "adapter_id": "unmatched",
+      "version_tested": "v1.2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 1,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "adapter_not_found"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Integration failed due to unmatched adapter."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "warning",
+      "confidence_score": 25,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Only one field mapped; missing mandatory fields for API call."
+    }
+  ]
+}

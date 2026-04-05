@@ -1,0 +1,130 @@
+{
+  "adapter_name": "GSTN API",
+  "category": "gst",
+  "description": "Fetch Goods and Services Tax taxpayer records and filing history.",
+  "provider": "GSTN (Goods and Services Tax Network)",
+  "base_url": "https://api.gst.gov.in",
+  "auth_type": "api_key",
+  "credential_env_vars": [
+    "GSTN_API_KEY"
+  ],
+  "versions": [
+    {
+      "version": "v1.0",
+      "endpoint": "/v1.0/returns",
+      "status": "deprecated",
+      "maturity_score": 3,
+      "deprecated": true,
+      "release_notes": "Initial release, slow indexing.",
+      "sunset_date": "2024-12-31"
+    },
+    {
+      "version": "v1.4",
+      "endpoint": "/v1.4/taxpayer",
+      "status": "stable",
+      "maturity_score": 8,
+      "deprecated": false,
+      "release_notes": "Includes comprehensive filing history array.",
+      "sunset_date": "2027-09-30"
+    },
+    {
+      "version": "v2.0",
+      "endpoint": "/v2.0/taxpayer",
+      "status": "beta",
+      "maturity_score": 5,
+      "deprecated": false,
+      "release_notes": "Beta release with dynamic JSON responses and low latency.",
+      "sunset_date": null
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "gstin",
+      "type": "string",
+      "description": "15 char alphanumeric GST Identification Number",
+      "validation": "15 char alphanumeric"
+    },
+    {
+      "field_name": "financial_year",
+      "type": "string",
+      "description": "Financial year for the return",
+      "validation": "format: 2023-24"
+    },
+    {
+      "field_name": "return_type",
+      "type": "enum",
+      "description": "Type of GST return to fetch",
+      "validation": "Enum: GSTR1/GSTR3B/GSTR2A"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "filing_period",
+      "type": "string",
+      "description": "Month/Quarter of filing (MM/Q1)",
+      "default_value": "null"
+    },
+    {
+      "field_name": "include_amendments",
+      "type": "boolean",
+      "description": "Include past amendments to the return",
+      "default_value": "false"
+    }
+  ],
+  "response_schema": {
+    "gstin": {
+      "type": "string",
+      "description": "Verified GSTIN"
+    },
+    "legal_name": {
+      "type": "string",
+      "description": "Legal name of business entity"
+    },
+    "trade_name": {
+      "type": "string",
+      "description": "Trade name or DBA"
+    },
+    "registration_date": {
+      "type": "date",
+      "description": "Date of GST registration"
+    },
+    "taxpayer_type": {
+      "type": "string",
+      "description": "Regular, Composition, etc."
+    },
+    "filing_status": {
+      "type": "string",
+      "description": "Active or Cancelled"
+    },
+    "turnover_band": {
+      "type": "string",
+      "description": "Approximate turnover bracket"
+    },
+    "state_jurisdiction": {
+      "type": "string",
+      "description": "State where entity is registered"
+    },
+    "annual_turnover": {
+      "type": "integer",
+      "description": "Declared annual turnover in rupees"
+    },
+    "return_filing_history": {
+      "type": "array",
+      "description": "Array of recent return filing objects"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid GSTIN format or invalid financial year.",
+    "401": "API Key is missing or invalid.",
+    "404": "GSTIN not found in the database.",
+    "429": "Exceeded TPS limits for GSTN network.",
+    "500": "GSTN internal core error."
+  },
+  "timeout_ms": 12000,
+  "retry_policy": {
+    "max_retries": 2,
+    "backoff_strategy": "exponential"
+  },
+  "sandbox_base_url": "https://sandbox.api.gst.gov.in",
+  "fallback_adapter": null
+}

@@ -1,0 +1,6 @@
+{
+  "error": true,
+  "error_code": "DIGILOCKER_AUTH_FAIL",
+  "message": "OAuth2 token expired or invalid. Re-authentication required.",
+  "response_code": 401
+}

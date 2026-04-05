@@ -1,0 +1,157 @@
+{
+  "adapter_name": "Twilio SMS",
+  "category": "messaging",
+  "description": "Send programmable SMS and MMS globally.",
+  "provider": "Twilio Inc",
+  "base_url": "https://api.twilio.com",
+  "auth_type": "basic_auth",
+  "credential_env_vars": [
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/2010-04-01/Accounts/{AccountSid}/Messages.json",
+      "status": "deprecated",
+      "maturity_score": 3,
+      "deprecated": true,
+      "release_notes": "Main reliable messaging interface",
+      "sunset_date": "2024-03-31"
+    },
+    {
+      "version": "v2",
+      "endpoint": "/v2/Accounts/{AccountSid}/Messages.json",
+      "status": "stable",
+      "maturity_score": 7,
+      "deprecated": false,
+      "release_notes": "Enhanced messaging with improved delivery tracking",
+      "sunset_date": "2026-04-04"
+    },
+    {
+      "version": "v3",
+      "endpoint": "/v3/Accounts/{AccountSid}/Messages.json",
+      "status": "stable",
+      "maturity_score": 9,
+      "deprecated": false,
+      "release_notes": "Latest interface with advanced analytics and RCS support",
+      "sunset_date": "2031-12-31"
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "to",
+      "type": "string",
+      "description": "Destination phone number in format +91XXXXXXXXXX",
+      "validation": "E.164 format phone"
+    },
+    {
+      "field_name": "from",
+      "type": "string",
+      "description": "Twilio provisioned sending number",
+      "validation": "E.164 format or alphanumeric sender ID"
+    },
+    {
+      "field_name": "body",
+      "type": "string",
+      "description": "Content of the text message",
+      "validation": "Message text max 1600 chars"
+    },
+    {
+      "field_name": "account_sid",
+      "type": "string",
+      "description": "Twilio Account SID for path routing",
+      "validation": "AC-prefixed alphanumeric string"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "media_url",
+      "type": "string",
+      "description": "URL to media for MMS",
+      "default_value": "null"
+    },
+    {
+      "field_name": "status_callback",
+      "type": "string",
+      "description": "Webhook URL for delivery receipts",
+      "default_value": "null"
+    },
+    {
+      "field_name": "messaging_service_sid",
+      "type": "string",
+      "description": "SID of a messaging service pool",
+      "default_value": "null"
+    },
+    {
+      "field_name": "validity_period",
+      "type": "integer",
+      "description": "Seconds the message is valid in carrier network",
+      "default_value": "14400"
+    }
+  ],
+  "response_schema": {
+    "message_sid": {
+      "type": "string",
+      "description": "Unique Twilio message identifier"
+    },
+    "account_sid": {
+      "type": "string",
+      "description": "Account SID"
+    },
+    "to": {
+      "type": "string",
+      "description": "To number"
+    },
+    "from": {
+      "type": "string",
+      "description": "From number"
+    },
+    "body": {
+      "type": "string",
+      "description": "Text body parsed"
+    },
+    "status": {
+      "type": "enum",
+      "description": "Enum: queued/sent/delivered/failed"
+    },
+    "direction": {
+      "type": "string",
+      "description": "outbound-api or inbound"
+    },
+    "price": {
+      "type": "string",
+      "description": "Cost of message as string"
+    },
+    "price_unit": {
+      "type": "string",
+      "description": "Currency of price e.g. USD"
+    },
+    "date_sent": {
+      "type": "date",
+      "description": "Timestamp message was dispatched"
+    },
+    "error_code": {
+      "type": "string",
+      "description": "Twilio specific error code if failed"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Twilio specific error string if failed"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid To or From number.",
+    "401": "Authentication Error - invalid SID or Token.",
+    "404": "The requested resource was not found.",
+    "429": "Too many concurrent requests to Twilio API.",
+    "500": "Internal server error connecting to carrier."
+  },
+  "timeout_ms": 3000,
+  "retry_policy": {
+    "max_retries": 3,
+    "backoff_strategy": "exponential"
+  },
+  "sandbox_base_url": "https://api.twilio.com/sandbox",
+  "fallback_adapter": null
+}

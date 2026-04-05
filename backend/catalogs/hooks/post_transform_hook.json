@@ -1,0 +1,72 @@
+{
+  "hook_name": "post_transform_hook",
+  "hook_type": "post-call",
+  "description": "Applies transformation_rules defined in the config to output a normalized response object.",
+  "trigger_condition": "Immediately after successful adapter API response received",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 1,
+  "is_blocking": true,
+  "payload_template": {
+    "event": "response_transformation",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "raw_response",
+      "type": "object",
+      "required": true,
+      "description": "Raw JSON response from downstream API",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "transformation_rules",
+      "type": "object",
+      "required": true,
+      "description": "Config payload defining mappings and casts",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the target adapter",
+      "default_value": ""
+    },
+    {
+      "param_name": "client_id",
+      "type": "string",
+      "required": true,
+      "description": "ID of the executing client tenant",
+      "default_value": ""
+    }
+  ],
+  "output": {
+    "on_success": "transformed_response (normalized), transformation_summary listing every rule applied",
+    "on_failure": "raw_response passed through unchanged, transformation_failure logged"
+  },
+  "timeout_ms": 2000,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Invalid JSON path expression in transformation rules.",
+    "HOOK_002": "Type casting failed (e.g. string to integer).",
+    "HOOK_003": "Attempted to transform entirely null payload."
+  },
+  "example_log_entry": {
+    "hook_name": "post_transform_hook",
+    "triggered_at": "2026-04-02T10:30:05Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "gst",
+    "result": "SUCCESS - Applied 5 transformation rules."
+  }
+}

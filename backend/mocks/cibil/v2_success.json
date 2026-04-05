@@ -1,0 +1,13 @@
+{
+  "cibil_score": 698,
+  "score_version": "TU_V2.1",
+  "active_accounts": 4,
+  "dpd_history": [
+    {"month": "2026-01", "dpd": 0},
+    {"month": "2025-12", "dpd": 0}
+  ],
+  "total_outstanding": 320000,
+  "credit_utilization": 28,
+  "enquiry_count": 1,
+  "risk_category": "Near-Prime"
+}

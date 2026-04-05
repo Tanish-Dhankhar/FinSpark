@@ -1,0 +1,70 @@
+{
+  "hook_name": "field_encryption_hook",
+  "hook_type": "pre-call",
+  "description": "Applies AES-256 encryption to all marked fields before sending payload over network.",
+  "trigger_condition": "Before payload leaves instance if adapter needs encryption",
+  "applicable_adapters": [
+    "cibil",
+    "experian",
+    "karza",
+    "digilocker"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 5,
+  "is_blocking": true,
+  "payload_template": {
+    "event": "pii_payload_encryption",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "outbound_payload",
+      "type": "object",
+      "required": true,
+      "description": "Validated output JSON",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "fields_to_encrypt",
+      "type": "object",
+      "required": true,
+      "description": "List extracted from transformation rules",
+      "default_value": "[]"
+    },
+    {
+      "param_name": "encryption_algorithm",
+      "type": "string",
+      "required": true,
+      "description": "AES-256 etc",
+      "default_value": "AES-256-GCM"
+    }
+  ],
+  "output": {
+    "on_success": "encrypted_payload with encrypted fields replaced",
+    "on_failure": "call aborted, HOOK_001 logged, plaintext never sent"
+  },
+  "timeout_ms": 1000,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [
+    "CLIENT_ENCRYPTION_KEY"
+  ],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Encryption fault: Client encryption key empty or invalid.",
+    "HOOK_002": "Algorithm mismatch exception during block cipher.",
+    "HOOK_003": "Attempted to encrypt non-string leaf node structure."
+  },
+  "example_log_entry": {
+    "hook_name": "field_encryption_hook",
+    "triggered_at": "2026-04-02T10:30:28Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "karza",
+    "result": "SUCCESS - Encrypted 2 PII fields locally."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "cibil_score": 742,
+  "score_version": "TU_V3.2",
+  "active_accounts": 5,
+  "dpd_history": [
+    {"month": "2026-01", "dpd": 0},
+    {"month": "2025-12", "dpd": 0},
+    {"month": "2025-11", "dpd": 15}
+  ],
+  "total_outstanding": 485000,
+  "credit_utilization": 34,
+  "enquiry_count": 2,
+  "risk_category": "Prime",
+  "score_factors": [
+    "Good repayment track record",
+    "Low credit utilization",
+    "Moderate enquiry activity"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "adapter_name": "Digilocker Document Fetch",
+  "category": "document",
+  "description": "Fetch official documents issued by Indian Government bodies.",
+  "provider": "National e-Governance Division, Government of India",
+  "base_url": "https://api.digitallocker.gov.in",
+  "auth_type": "oauth2",
+  "credential_env_vars": [
+    "DIGILOCKER_CLIENT_ID",
+    "DIGILOCKER_CLIENT_SECRET"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/v1/doc",
+      "status": "deprecated",
+      "maturity_score": 4,
+      "deprecated": true,
+      "release_notes": "Legacy integration, slower sync.",
+      "sunset_date": "2025-01-15"
+    },
+    {
+      "version": "v2",
+      "endpoint": "/v2/documents",
+      "status": "stable",
+      "maturity_score": 9,
+      "deprecated": false,
+      "release_notes": "Improved consent mechanisms and reliability.",
+      "sunset_date": "2028-06-30"
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "aadhaar_number",
+      "type": "string",
+      "description": "12 digit Aadhaar number",
+      "validation": "12 digit numeric"
+    },
+    {
+      "field_name": "document_type",
+      "type": "enum",
+      "description": "Short code of the document type to pull",
+      "validation": "Enum: ADHAR/PANCR/DRVLC/VOTERID"
+    },
+    {
+      "field_name": "consent_token",
+      "type": "string",
+      "description": "Bearer token proving user consent",
+      "validation": "Valid JWT token"
+    },
+    {
+      "field_name": "redirect_uri",
+      "type": "string",
+      "description": "Application callback URL after auth",
+      "validation": "Valid HTTP/HTTPS URI"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "dob",
+      "type": "date",
+      "description": "Date of Birth",
+      "default_value": "null"
+    },
+    {
+      "field_name": "gender",
+      "type": "string",
+      "description": "User gender to match record",
+      "default_value": "null"
+    }
+  ],
+  "response_schema": {
+    "document_url": {
+      "type": "string",
+      "description": "URL to download document"
+    },
+    "document_id": {
+      "type": "string",
+      "description": "Unique ID of the document vault"
+    },
+    "issuer": {
+      "type": "string",
+      "description": "Name of the issuer"
+    },
+    "issue_date": {
+      "type": "date",
+      "description": "Date document was issued"
+    },
+    "verification_status": {
+      "type": "string",
+      "description": "VERIFIED or UNVERIFIED"
+    },
+    "name_on_document": {
+      "type": "string",
+      "description": "Full name printed"
+    },
+    "expiry_date": {
+      "type": "date",
+      "description": "When document expires, if any"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid document type or Aadhaar format.",
+    "401": "Invalid OAuth2 consent token.",
+    "403": "User did not grant permission to this document.",
+    "404": "Document not found in vault.",
+    "429": "Rate limit exceeded.",
+    "500": "Digilocker internal server error."
+  },
+  "timeout_ms": 8000,
+  "retry_policy": {
+    "max_retries": 3,
+    "backoff_strategy": "exponential"
+  },
+  "sandbox_base_url": "https://sandbox.digitallocker.gov.in",
+  "fallback_adapter": null
+}

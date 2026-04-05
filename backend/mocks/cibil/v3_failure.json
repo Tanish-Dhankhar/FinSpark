@@ -1,0 +1,7 @@
+{
+  "error": true,
+  "error_code": "CIBIL_503",
+  "message": "Service temporarily unavailable. Bureau system under maintenance.",
+  "response_code": 503,
+  "retry_after": 30
+}

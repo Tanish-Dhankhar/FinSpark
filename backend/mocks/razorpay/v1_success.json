@@ -1,0 +1,12 @@
+{
+  "payment_id": "pay_JkLmNoPqRsT",
+  "order_id": "order_AbCdEfGhIjK",
+  "status": "captured",
+  "method": "upi",
+  "amount_paid": 150000,
+  "fee": 354,
+  "tax": 64,
+  "upi_transaction_ref": "202603151234567890",
+  "bank_reference": "HDFC0001234",
+  "captured_at": 1743609600
+}

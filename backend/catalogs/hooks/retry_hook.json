@@ -1,0 +1,86 @@
+{
+  "hook_name": "retry_hook",
+  "hook_type": "retry",
+  "description": "Implements exponential backoff retry logic on 429 or 5xx using the adapter's retry_policy.",
+  "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 1,
+  "is_blocking": true,
+  "payload_template": {
+    "event": "adapter_call_retry",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Target Adapter",
+      "default_value": ""
+    },
+    {
+      "param_name": "http_status_code",
+      "type": "integer",
+      "required": true,
+      "description": "Failing status code",
+      "default_value": "500"
+    },
+    {
+      "param_name": "attempt_number",
+      "type": "integer",
+      "required": true,
+      "description": "Current attempt index",
+      "default_value": "1"
+    },
+    {
+      "param_name": "max_retries",
+      "type": "integer",
+      "required": true,
+      "description": "Allowed retries from catalog",
+      "default_value": "3"
+    },
+    {
+      "param_name": "initial_delay_ms",
+      "type": "integer",
+      "required": true,
+      "description": "Delay before first retry",
+      "default_value": "500"
+    },
+    {
+      "param_name": "backoff_strategy",
+      "type": "string",
+      "required": true,
+      "description": "fixed or exponential",
+      "default_value": "exponential"
+    }
+  ],
+  "output": {
+    "on_success": "retry succeeded, response returned",
+    "on_failure": "max retries exhausted, triggers on_failure_alert_hook, marks adapter as FAILED in simulation report"
+  },
+  "timeout_ms": 15000,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Invalid backoff strategy passed.",
+    "HOOK_002": "Max retries hit, operation definitively failed.",
+    "HOOK_003": "Attempt count tracking lost."
+  },
+  "example_log_entry": {
+    "hook_name": "retry_hook",
+    "triggered_at": "2026-04-02T10:30:15Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "pennydrop",
+    "result": "FAILED - Max retries (2) exhausted after 504 Gateway Timeout."
+  }
+}

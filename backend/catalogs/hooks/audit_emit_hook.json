@@ -1,0 +1,86 @@
+{
+  "hook_name": "audit_emit_hook",
+  "hook_type": "audit",
+  "description": "Writes a structured audit event to the client's audit.log calculating SHA256 hashes.",
+  "trigger_condition": "After every pipeline action",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 3,
+  "is_blocking": false,
+  "payload_template": {
+    "event": "audit_log_entry",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "client_id",
+      "type": "string",
+      "required": true,
+      "description": "Client workspace to write into",
+      "default_value": ""
+    },
+    {
+      "param_name": "stage",
+      "type": "string",
+      "required": true,
+      "description": "Orchestration Pipeline Stage",
+      "default_value": ""
+    },
+    {
+      "param_name": "action",
+      "type": "string",
+      "required": true,
+      "description": "Name of the executed action",
+      "default_value": ""
+    },
+    {
+      "param_name": "agent",
+      "type": "string",
+      "required": true,
+      "description": "Name of the executing agent or system",
+      "default_value": "system"
+    },
+    {
+      "param_name": "input_payload",
+      "type": "object",
+      "required": true,
+      "description": "Raw input dictionary",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "output_payload",
+      "type": "object",
+      "required": true,
+      "description": "Raw output dictionary",
+      "default_value": "{}"
+    }
+  ],
+  "output": {
+    "on_success": "audit entry written, entry_id returned",
+    "on_failure": "audit failure is critical \u2014 logged to a fallback system_audit.log at root level"
+  },
+  "timeout_ms": 1000,
+  "retry_policy": {
+    "max_retries": 3,
+    "backoff_strategy": "exponential",
+    "initial_delay_ms": 100
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Failed to calculate SHA256 hash.",
+    "HOOK_002": "IO Error writing to client audit log.",
+    "HOOK_003": "Attempted to log unresolved credential value."
+  },
+  "example_log_entry": {
+    "hook_name": "audit_emit_hook",
+    "triggered_at": "2026-04-02T10:30:20Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "system",
+    "result": "SUCCESS - Audit event 8d712fa saved."
+  }
+}

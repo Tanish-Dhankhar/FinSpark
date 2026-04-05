@@ -1,0 +1,7 @@
+{
+  "error": true,
+  "error_code": "RAZORPAY_MISSING_FIELDS",
+  "message": "Missing required fields: order_amount, currency",
+  "response_code": 422,
+  "missing_fields": ["order_amount", "currency"]
+}

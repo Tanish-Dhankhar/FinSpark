@@ -1,0 +1,90 @@
+{
+  "report_id": "sim_f270319a",
+  "generated_at": "2026-04-05T16:02:25.343186+00:00",
+  "overall_confidence_score": 70,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 3,
+  "failed_count": 2,
+  "human_readable_summary": "The simulation completed for 5 integrations. While Karza, CIBIL, and RiskGuard passed validation, Perfios and Twilio failed due to unmapped mandatory fields in the configuration. Specifically, Perfios lacks mapping for customer_id and date ranges, while Twilio is missing sender ID and message body mappings, which are critical for operational success.",
+  "recommended_actions": [
+    "Update Perfios integration mapping to include customer_id, date_range_from, and date_range_to.",
+    "Update Twilio integration mapping to include from, body, and account_sid fields.",
+    "Verify if the missing fields in Perfios and Twilio should be hardcoded or passed dynamically from the user context."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_002",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_perfios_003",
+      "adapter_id": "perfios",
+      "version_tested": "v2",
+      "status": "failed",
+      "confidence_score": 50,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "customer_id",
+        "date_range_from",
+        "date_range_to"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing 3 mandatory fields required for API execution."
+    },
+    {
+      "integration_id": "int_riskguard_004",
+      "adapter_id": "riskguard",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped successfully."
+    },
+    {
+      "integration_id": "int_twilio_005",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing 3 mandatory fields required for SMS dispatch."
+    }
+  ]
+}

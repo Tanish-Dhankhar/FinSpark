@@ -1,0 +1,18 @@
+{
+  "experian_score": 768,
+  "score_band": "Good",
+  "active_loans": 3,
+  "overdue_accounts": 0,
+  "credit_utilization_ratio": 28,
+  "total_outstanding": 320000,
+  "dpd_buckets": "0-0-0-15-0-0",
+  "enquiry_history": [
+    {"date": "2026-01-15", "institution": "HDFC Bank", "purpose": "Personal Loan"},
+    {"date": "2025-11-03", "institution": "ICICI Bank", "purpose": "Credit Card"}
+  ],
+  "score_factors": [
+    "Consistent repayment behavior",
+    "Manageable debt-to-income ratio",
+    "Low utilization of credit limits"
+  ]
+}

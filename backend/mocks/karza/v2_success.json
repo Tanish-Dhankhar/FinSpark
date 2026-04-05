@@ -1,0 +1,9 @@
+{
+  "kyc_status": "VERIFIED",
+  "name_match_score": 95,
+  "pan_verified": true,
+  "aadhaar_verified": true,
+  "address": "42 MG Road, Bangalore, Karnataka 560001",
+  "face_match_score": 88,
+  "liveness_check": "PASS"
+}

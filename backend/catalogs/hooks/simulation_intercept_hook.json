@@ -1,0 +1,72 @@
+{
+  "hook_name": "simulation_intercept_hook",
+  "hook_type": "pre-call",
+  "description": "Intercepts outbound calls during simulation and returns static mock data from disk.",
+  "trigger_condition": "Right before hitting network IF pipeline is in Simulation Phase",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 6,
+  "is_blocking": true,
+  "payload_template": {
+    "event": "simulation_sandbox_intercept",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Requested adapter",
+      "default_value": ""
+    },
+    {
+      "param_name": "adapter_version",
+      "type": "string",
+      "required": true,
+      "description": "Requested Version",
+      "default_value": ""
+    },
+    {
+      "param_name": "simulation_mode",
+      "type": "boolean",
+      "required": true,
+      "description": "Flag driving sandbox",
+      "default_value": "true"
+    },
+    {
+      "param_name": "mock_library_path",
+      "type": "string",
+      "required": true,
+      "description": "Local path for JSON dumps",
+      "default_value": "/backend/data/mocks"
+    }
+  ],
+  "output": {
+    "on_success": "mock_response loaded and returned as if real, simulation_mode: true attached",
+    "on_failure": "mock file not found error, adapter marked as SIMULATION_FAILED in report"
+  },
+  "timeout_ms": 100,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Mock payload file missing on disk.",
+    "HOOK_002": "Mock payload JSON parsing error.",
+    "HOOK_003": "Path traversal attempt blocked in mock resolution."
+  },
+  "example_log_entry": {
+    "hook_name": "simulation_intercept_hook",
+    "triggered_at": "2026-04-02T10:30:29Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "razorpay",
+    "result": "SUCCESS - Simulated 200 OK from mocks/razorpay/v1_success.json."
+  }
+}

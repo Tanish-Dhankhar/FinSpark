@@ -1,0 +1,157 @@
+{
+  "adapter_name": "Experian Credit Score",
+  "category": "bureau",
+  "description": "Fetch customer credit score and credit history from Experian India.",
+  "provider": "Experian India",
+  "base_url": "https://api.experian.in",
+  "auth_type": "oauth2",
+  "credential_env_vars": [
+    "EXPERIAN_CLIENT_ID",
+    "EXPERIAN_CLIENT_SECRET"
+  ],
+  "versions": [
+    {
+      "version": "v2",
+      "endpoint": "/v2/creditprofile",
+      "status": "deprecated",
+      "maturity_score": 4,
+      "deprecated": true,
+      "release_notes": "Old format response schema",
+      "sunset_date": "2025-03-31"
+    },
+    {
+      "version": "v3",
+      "endpoint": "/v3/consumer/creditreport",
+      "status": "stable",
+      "maturity_score": 9,
+      "deprecated": false,
+      "release_notes": "Enhanced scoring model with better DPD buckets",
+      "sunset_date": "2028-03-31"
+    },
+    {
+      "version": "v4",
+      "endpoint": "/v4/consumer/creditreport",
+      "status": "beta",
+      "maturity_score": 6,
+      "deprecated": false,
+      "release_notes": "Real-time AI enriched score factors",
+      "sunset_date": null
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "pan_number",
+      "type": "string",
+      "description": "Customer PAN",
+      "validation": "10 char alphanumeric"
+    },
+    {
+      "field_name": "full_name",
+      "type": "string",
+      "description": "Full name exactly as per PAN",
+      "validation": "min length 3"
+    },
+    {
+      "field_name": "date_of_birth",
+      "type": "date",
+      "description": "Date of Birth",
+      "validation": "ISO 8601 date"
+    },
+    {
+      "field_name": "mobile_number",
+      "type": "string",
+      "description": "10 digit mobile number",
+      "validation": "10 digit numeric"
+    },
+    {
+      "field_name": "address",
+      "type": "string",
+      "description": "Current address of the customer",
+      "validation": "min length 10"
+    },
+    {
+      "field_name": "pin_code",
+      "type": "string",
+      "description": "6 digit postal PIN code",
+      "validation": "6 digit numeric"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "email",
+      "type": "string",
+      "description": "Email ID for better matching",
+      "default_value": "null"
+    },
+    {
+      "field_name": "consent_timestamp",
+      "type": "date",
+      "description": "When consent was given",
+      "default_value": "current_timestamp"
+    },
+    {
+      "field_name": "loan_enquiry_amount",
+      "type": "integer",
+      "description": "Amount the customer is applying for",
+      "default_value": "0"
+    },
+    {
+      "field_name": "enquiry_purpose",
+      "type": "string",
+      "description": "Type of loan applied for",
+      "default_value": "PERSONAL_LOAN"
+    }
+  ],
+  "response_schema": {
+    "experian_score": {
+      "type": "integer",
+      "description": "Score between 300 to 900"
+    },
+    "score_band": {
+      "type": "string",
+      "description": "Risk band description"
+    },
+    "active_loans": {
+      "type": "integer",
+      "description": "Number of currently active loan accounts"
+    },
+    "overdue_accounts": {
+      "type": "integer",
+      "description": "Number of accounts currently overdue"
+    },
+    "credit_utilization_ratio": {
+      "type": "integer",
+      "description": "Overall card/limit utilization percentage"
+    },
+    "total_outstanding": {
+      "type": "integer",
+      "description": "Total principal outstanding in rupees"
+    },
+    "dpd_buckets": {
+      "type": "string",
+      "description": "String representation of Days Past Due history"
+    },
+    "enquiry_history": {
+      "type": "array",
+      "description": "Array of past enquiries"
+    },
+    "score_factors": {
+      "type": "array",
+      "description": "Array of strings explaining score drivers"
+    }
+  },
+  "error_codes": {
+    "400": "Validation failed on PAN or Mobile.",
+    "401": "Invalid OAuth2 Token.",
+    "404": "No hit - customer not found in bureau.",
+    "429": "Exceeded allocated TPS limit.",
+    "500": "Experian core system error."
+  },
+  "timeout_ms": 10000,
+  "retry_policy": {
+    "max_retries": 3,
+    "backoff_strategy": "exponential"
+  },
+  "sandbox_base_url": "https://sandbox-api.experian.in",
+  "fallback_adapter": "cibil"
+}

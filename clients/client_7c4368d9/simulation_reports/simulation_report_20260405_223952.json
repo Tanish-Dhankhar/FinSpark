@@ -1,0 +1,87 @@
+{
+  "report_id": "sim_4cbeb4d3",
+  "generated_at": "2026-04-05T17:09:47.087222+00:00",
+  "overall_confidence_score": 80,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 3,
+  "failed_count": 2,
+  "human_readable_summary": "The integration simulation completed with 3 successful integrations and 2 failures. The Perfios Account Aggregator and Twilio SMS integrations failed due to missing mandatory field mappings, specifically the consent artifact and destination phone number, respectively. All other integrations (Karza, CIBIL, and RiskGuard) passed validation with high confidence scores.",
+  "recommended_actions": [
+    "Add 'consent_artifact' mapping to Perfios integration configuration.",
+    "Add 'to' (destination phone) mapping to Twilio integration configuration.",
+    "Verify if additional transformation rules are required for Perfios and Twilio fields.",
+    "Re-run simulation after updating the integration configuration."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformations verified."
+    },
+    {
+      "integration_id": "int_cibil_002",
+      "adapter_id": "cibil",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and formatting rules applied."
+    },
+    {
+      "integration_id": "int_perfios_003",
+      "adapter_id": "perfios",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 83,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "consent_artifact"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing mandatory field: consent_artifact."
+    },
+    {
+      "integration_id": "int_riskguard_004",
+      "adapter_id": "riskguard",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped successfully."
+    },
+    {
+      "integration_id": "int_twilio_005",
+      "adapter_id": "twilio",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 75,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "to"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing mandatory field: to (destination phone)."
+    }
+  ]
+}

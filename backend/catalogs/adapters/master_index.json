@@ -1,0 +1,129 @@
+{
+  "adapters": [
+    {
+      "id": "cibil",
+      "name": "TransUnion CIBIL Bureau",
+      "category": "bureau",
+      "versions": [
+        "v1",
+        "v2",
+        "v3"
+      ],
+      "path": "cibil.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "digilocker",
+      "name": "Digilocker Document Fetch",
+      "category": "document",
+      "versions": [
+        "v1",
+        "v2"
+      ],
+      "path": "digilocker.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "experian",
+      "name": "Experian Credit Score",
+      "category": "bureau",
+      "versions": [
+        "v2",
+        "v3",
+        "v4"
+      ],
+      "path": "experian.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "gst",
+      "name": "GSTN API",
+      "category": "gst",
+      "versions": [
+        "v1.0",
+        "v1.4",
+        "v2.0"
+      ],
+      "path": "gst.json",
+      "maturity_score": 8.0
+    },
+    {
+      "id": "karza",
+      "name": "Karza KYC Provider",
+      "category": "kyc",
+      "versions": [
+        "v1",
+        "v2"
+      ],
+      "path": "karza.json",
+      "maturity_score": 8.0
+    },
+    {
+      "id": "pennydrop",
+      "name": "Penny Drop / Account Verification",
+      "category": "banking",
+      "versions": [
+        "v1"
+      ],
+      "path": "pennydrop.json",
+      "maturity_score": 8.0
+    },
+    {
+      "id": "perfios",
+      "name": "Perfios Account Aggregator",
+      "category": "banking",
+      "versions": [
+        "v1",
+        "v2"
+      ],
+      "path": "perfios.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "razorpay",
+      "name": "Razorpay Payments",
+      "category": "payment",
+      "versions": [
+        "v1",
+        "v2"
+      ],
+      "path": "razorpay.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "riskguard",
+      "name": "RiskGuard Analytics Engine",
+      "category": "fraud",
+      "versions": [
+        "v1",
+        "v2",
+        "v3"
+      ],
+      "path": "riskguard.json",
+      "maturity_score": 8.0
+    },
+    {
+      "id": "twilio",
+      "name": "Twilio SMS",
+      "category": "messaging",
+      "versions": [
+        "v1",
+        "v2",
+        "v3"
+      ],
+      "path": "twilio.json",
+      "maturity_score": 9.0
+    },
+    {
+      "id": "stripe_payment_adapter",
+      "name": "Stripe Payments",
+      "category": "payment",
+      "versions": [
+        "2022-11-15",
+        "2024-04-10"
+      ],
+      "path": "stripe_payment_adapter.json",
+      "maturity_score": 8
+    }
+  ]
+}

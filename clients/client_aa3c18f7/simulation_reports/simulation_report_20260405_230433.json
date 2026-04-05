@@ -1,0 +1,117 @@
+{
+  "report_id": "sim_8c924ea0",
+  "generated_at": "2026-04-05T17:34:28.107907+00:00",
+  "overall_confidence_score": 0,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 0,
+  "failed_count": 5,
+  "human_readable_summary": "The simulation failed for all integrations because no specific adapter implementations were found, resulting in a fallback to a generic mock response. While the field mapping configurations are defined, the lack of concrete adapter IDs prevented validation of the actual data transformation logic and API connectivity.",
+  "recommended_actions": [
+    "Register and link specific adapter IDs for each integration in the configuration.",
+    "Upload or define mock response files for each integration to enable accurate validation.",
+    "Verify that the transformation rules (encryption/formatting) are correctly implemented in the target adapter environment.",
+    "Re-run the simulation after updating the adapter references."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "aadhaar_number",
+        "pan_number",
+        "consent"
+      ],
+      "transformation_rule_failures": [
+        "Encryption logic not verified due to missing adapter"
+      ],
+      "notes": "Adapter not found; simulation defaulted to generic mock."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "pan_number",
+        "full_name",
+        "date_of_birth",
+        "mobile_number"
+      ],
+      "transformation_rule_failures": [
+        "Format and encryption logic not verified"
+      ],
+      "notes": "Adapter not found; simulation defaulted to generic mock."
+    },
+    {
+      "integration_id": "int_perfios_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "account_number",
+        "ifsc_code",
+        "customer_id",
+        "date_range_from",
+        "date_range_to",
+        "consent_artifact"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Adapter not found; simulation defaulted to generic mock."
+    },
+    {
+      "integration_id": "int_riskguard_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "applicant_id",
+        "pan_number",
+        "mobile_number",
+        "ip_address",
+        "device_fingerprint",
+        "loan_amount_requested"
+      ],
+      "transformation_rule_failures": [
+        "Encryption logic not verified"
+      ],
+      "notes": "Adapter not found; simulation defaulted to generic mock."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "to",
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Adapter not found; simulation defaulted to generic mock."
+    }
+  ]
+}

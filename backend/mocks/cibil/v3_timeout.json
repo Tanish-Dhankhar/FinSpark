@@ -1,0 +1,7 @@
+{
+  "error": true,
+  "error_code": "CIBIL_TIMEOUT",
+  "message": "Request timed out after 15000ms. Bureau did not respond.",
+  "response_code": 408,
+  "timeout_ms": 15000
+}

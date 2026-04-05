@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "config_id": "",
+    "config_version": "v1",
+    "created_at": "",
+    "last_updated_at": "",
+    "status": "draft",
+    "client": {
+      "client_id": "",
+      "client_name": "",
+      "industry_vertical": "",
+      "region": "",
+      "environment": "sandbox"
+    },
+    "uploaded_documents": [],
+    "pipeline_run": {
+      "run_id": "",
+      "triggered_by": "",
+      "triggered_at": "",
+      "completed_at": "",
+      "overall_status": "pending",
+      "human_review_status": "pending",
+      "human_reviewer": "",
+      "review_notes": "",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3
+    }
+  },
+  "credential_vault": {
+    "vault_provider": "env_file",
+    "credentials": []
+  },
+  "integrations": [],
+  "diff_history": {
+    "versions": []
+  },
+  "audit_log": {
+    "entries": []
+  },
+  "simulation_report": {
+    "report_id": "",
+    "generated_at": "",
+    "overall_confidence_score": null,
+    "overall_passed": null,
+    "total_integrations_tested": null,
+    "passed_count": null,
+    "failed_count": null,
+    "human_readable_summary": "",
+    "recommended_actions": [],
+    "report_file_path": "",
+    "integration_results": []
+  }
+}

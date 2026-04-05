@@ -1,0 +1,72 @@
+{
+  "hook_name": "post_schema_validation_hook",
+  "hook_type": "validation",
+  "description": "Validates the transformed response against the adapter's known response_schema.",
+  "trigger_condition": "After post_transform_hook",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 2,
+  "is_blocking": false,
+  "payload_template": {
+    "event": "transformed_response_schema_validation",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "transformed_response",
+      "type": "object",
+      "required": true,
+      "description": "Response output after transformations",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "expected_response_schema",
+      "type": "object",
+      "required": true,
+      "description": "Schema model from the adapter catalog",
+      "default_value": "{}"
+    },
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Adapter Name",
+      "default_value": ""
+    },
+    {
+      "param_name": "adapter_version",
+      "type": "string",
+      "required": true,
+      "description": "Version ID",
+      "default_value": ""
+    }
+  ],
+  "output": {
+    "on_success": "schema_validation_passed: true",
+    "on_failure": "schema_warnings array with each mismatch described, pipeline continues"
+  },
+  "timeout_ms": 500,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Missing output field expected by schema.",
+    "HOOK_002": "Output field type mismatch.",
+    "HOOK_003": "Nested schema structure discrepancy."
+  },
+  "example_log_entry": {
+    "hook_name": "post_schema_validation_hook",
+    "triggered_at": "2026-04-02T10:30:06Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "experian",
+    "result": "WARNING - schema_warnings attached: missing 'score_band' field in downstream response."
+  }
+}

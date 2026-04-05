@@ -1,0 +1,374 @@
+{
+  "entries": [
+    {
+      "timestamp": "2026-04-05T15:56:02.991857+00:00",
+      "stage": "project_initialization",
+      "action": "Project created for 'Novacred'",
+      "agent": "project_service",
+      "responsible": "user",
+      "input_hash": null,
+      "output_hash": "sha256:3dcd1be7a61f2683",
+      "details": "Config template v1 initialized at C:\\Users\\happy\\Desktop\\college\\hackathons\\FinSpark_final\\clients\\client_7c4368d9\\configs\\config_v1.json"
+    },
+    {
+      "timestamp": "2026-04-05T15:56:19.292290+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline execution started (stages 1-5)",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:56:19.619348+00:00",
+      "stage": "stage_1_ingestion",
+      "action": "Extracted text from 2 documents (34777 chars total)",
+      "agent": "stage1_ingestion",
+      "responsible": "system",
+      "input_hash": "sha256:ff8df77e78faa80d",
+      "output_hash": "sha256:7d72abab5c867ef2",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:56:26.486234+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Extracted requirements: 5 services detected",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:e240c2058297ee86",
+      "output_hash": "sha256:b3d01a5cf4b461d9",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:56:34.015792+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Config template filled with 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:b3d01a5cf4b461d9",
+      "output_hash": "sha256:6febe5e0e1806b16",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:56:53.634815+00:00",
+      "stage": "stage_3_matching",
+      "action": "Adapter matching: 5 adapters matched",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:b3d01a5cf4b461d9",
+      "output_hash": "sha256:8334aa7a53f96478",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:57:04.566106+00:00",
+      "stage": "stage_3_matching",
+      "action": "Config enriched with adapter endpoints, auth, and retry policies",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:57:21.520648+00:00",
+      "stage": "stage_3_matching",
+      "action": "Hooks assigned: 9 unique hooks across 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:57:53.806388+00:00",
+      "stage": "stage_3_matching",
+      "action": "Field mapping complete: 25 mappings, 6 transformation rules",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:58:00.291379+00:00",
+      "stage": "stage_4_reasoning",
+      "action": "Reasoning report generated: 5 integrations analyzed, 7 missing fields flagged, 0 unmatched services",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:431433487694d2fe",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:58:16.319650+00:00",
+      "stage": "stage_5_cleaner",
+      "action": "Config cleaned for production (size delta: +2871 chars)",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:3bda2ad3dca9ecfe",
+      "output_hash": "sha256:0ebf67d03dc89bb9",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:58:16.332361+00:00",
+      "stage": "stage_6_review",
+      "action": "Pipeline paused for human review",
+      "agent": "stage6_review",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T15:58:16.339038+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline paused at Stage 6 for human review",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T16:02:25.293387+00:00",
+      "stage": "stage_6_review",
+      "action": "Config v1 approved",
+      "agent": "stage6_review",
+      "responsible": "human_reviewer",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T16:02:25.295939+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline resumed for Stage 7 simulation",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T16:02:36.640646+00:00",
+      "stage": "stage_7_simulation",
+      "action": "Simulation complete: 70% confidence, 3 passed, 2 failed",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:df79bab97b95725f",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T16:02:36.643669+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline COMPLETED \u2014 confidence score: 70%",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:05:19.286448+00:00",
+      "stage": "config_edit",
+      "action": "Config file 'config_v1.json' edited manually via dashboard",
+      "agent": "user",
+      "responsible": "user",
+      "input_hash": "sha256:5538d3981baef6d5",
+      "output_hash": "sha256:2bae59cb1711cf4e",
+      "details": "File: config_v1.json"
+    },
+    {
+      "timestamp": "2026-04-05T17:06:03.004362+00:00",
+      "stage": "config_edit",
+      "action": "Config file 'config_v1.json' edited manually via dashboard",
+      "agent": "user",
+      "responsible": "user",
+      "input_hash": "sha256:2bae59cb1711cf4e",
+      "output_hash": "sha256:8480a96272a73211",
+      "details": "File: config_v1.json"
+    },
+    {
+      "timestamp": "2026-04-05T17:07:14.782037+00:00",
+      "stage": "document_update",
+      "action": "Updated documents uploaded: NovaCred_BRD.pdf, NovaCred_SOW.docx",
+      "agent": "user",
+      "responsible": "user",
+      "input_hash": "sha256:1df769492ae69b65",
+      "output_hash": null,
+      "details": "2 document(s) uploaded for pipeline re-run. New config version: v2"
+    },
+    {
+      "timestamp": "2026-04-05T17:07:14.786769+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline execution started (stages 1-5)",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:07:15.864768+00:00",
+      "stage": "stage_1_ingestion",
+      "action": "Extracted text from 2 documents (36853 chars total)",
+      "agent": "stage1_ingestion",
+      "responsible": "system",
+      "input_hash": "sha256:601043a6a74d42c4",
+      "output_hash": "sha256:a6507adcfb66768a",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:07:20.745953+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Extracted requirements: 5 services detected",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:39ec6b76dfe2888a",
+      "output_hash": "sha256:447a28e819b62479",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:07:31.333256+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Config template filled with 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:447a28e819b62479",
+      "output_hash": "sha256:27d884f1859fd999",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:07:34.407751+00:00",
+      "stage": "stage_3_matching",
+      "action": "Adapter matching: 5 adapters matched",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:447a28e819b62479",
+      "output_hash": "sha256:890d80ad397d9205",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:07:46.341756+00:00",
+      "stage": "stage_3_matching",
+      "action": "Config enriched with adapter endpoints, auth, and retry policies",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:08:14.579447+00:00",
+      "stage": "stage_3_matching",
+      "action": "Hooks assigned: 8 unique hooks across 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:08:25.514185+00:00",
+      "stage": "stage_3_matching",
+      "action": "Field mapping complete: 23 mappings, 3 transformation rules",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:08:32.205254+00:00",
+      "stage": "stage_4_reasoning",
+      "action": "Reasoning report generated: 5 integrations analyzed, 2 missing fields flagged, 0 unmatched services",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:a9d621f4c84917d2",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:01.615966+00:00",
+      "stage": "stage_5_cleaner",
+      "action": "Config cleaned for production (size delta: +1390 chars)",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:4738028ed4761f3d",
+      "output_hash": "sha256:4738028ed4761f3d",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:01.640728+00:00",
+      "stage": "stage_6_review",
+      "action": "Pipeline paused for human review",
+      "agent": "stage6_review",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:01.655126+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline paused at Stage 6 for human review",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:33.233681+00:00",
+      "stage": "config_edit",
+      "action": "Config file 'config_v2.json' edited manually via dashboard",
+      "agent": "user",
+      "responsible": "user",
+      "input_hash": "sha256:7398d1cdd9cb6a23",
+      "output_hash": "sha256:869589d67d467bd3",
+      "details": "File: config_v2.json"
+    },
+    {
+      "timestamp": "2026-04-05T17:09:47.024472+00:00",
+      "stage": "stage_6_review",
+      "action": "Config v2 approved",
+      "agent": "stage6_review",
+      "responsible": "human_reviewer",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:47.031284+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline resumed for Stage 7 simulation",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:52.596144+00:00",
+      "stage": "stage_7_simulation",
+      "action": "Simulation complete: 80% confidence, 3 passed, 2 failed",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:8ee26996d53ba229",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-05T17:09:52.599518+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline COMPLETED \u2014 confidence score: 80%",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    }
+  ]
+}

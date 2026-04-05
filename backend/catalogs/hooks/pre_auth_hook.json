@@ -1,0 +1,72 @@
+{
+  "hook_name": "pre_auth_hook",
+  "hook_type": "pre-call",
+  "description": "Injects correct auth headers dynamically before sending outbound API requests.",
+  "trigger_condition": "Before outbound adapter API call",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 7,
+  "is_blocking": true,
+  "payload_template": {
+    "event": "pre_call_auth_injection",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the target adapter",
+      "default_value": ""
+    },
+    {
+      "param_name": "auth_type",
+      "type": "string",
+      "required": true,
+      "description": "Type of authentication expected by the adapter",
+      "default_value": "bearer_token"
+    },
+    {
+      "param_name": "credential_env_var",
+      "type": "string",
+      "required": true,
+      "description": "Environment variables required to construct auth headers",
+      "default_value": ""
+    },
+    {
+      "param_name": "request_headers",
+      "type": "object",
+      "required": true,
+      "description": "Headers object for the HTTP request",
+      "default_value": "{}"
+    }
+  ],
+  "output": {
+    "on_success": "enriched request_headers with Authorization injected",
+    "on_failure": "abort pipeline for this adapter, log HOOK_001 error"
+  },
+  "timeout_ms": 1000,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Authentication failure: Missing or invalid credentials.",
+    "HOOK_002": "Malformed auth header construction.",
+    "HOOK_003": "Critical: Attempted to send request with empty auth header."
+  },
+  "example_log_entry": {
+    "hook_name": "pre_auth_hook",
+    "triggered_at": "2026-04-02T10:30:00Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "cibil",
+    "result": "SUCCESS - Authorization header injected."
+  }
+}

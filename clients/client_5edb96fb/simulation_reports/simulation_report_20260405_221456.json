@@ -1,0 +1,79 @@
+{
+  "report_id": "sim_364994f7",
+  "generated_at": "2026-04-05T16:44:51.985035+00:00",
+  "overall_confidence_score": 40,
+  "overall_passed": false,
+  "total_integrations_tested": 4,
+  "passed_count": 0,
+  "failed_count": 4,
+  "human_readable_summary": "The simulation failed across all four integrations due to missing adapter definitions and critical mandatory field gaps. While field mappings were defined in the configuration, the lack of mock data and missing mandatory fields for Razorpay and Twilio prevent successful integration validation. All integrations currently rely on unknown adapters.",
+  "recommended_actions": [
+    "Define and register adapter IDs for all integrations to enable mock testing.",
+    "Populate missing mandatory fields for Razorpay (currency, customer_id, order_id, payment_method) and Twilio (from, body, account_sid).",
+    "Upload mock response files for each integration to replace the current simulated fallback.",
+    "Verify field mapping logic against the BRD to ensure all required API parameters are accounted for."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "warning",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Mapping complete, but adapter is unknown and no mock data available."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "warning",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Mapping complete, but adapter is unknown and no mock data available."
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": -20,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "currency",
+        "customer_id",
+        "order_id",
+        "payment_method"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Critical missing fields identified."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": -20,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Critical missing fields identified."
+    }
+  ]
+}

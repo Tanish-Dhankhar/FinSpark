@@ -1,0 +1,9 @@
+{
+  "risk_score": 220,
+  "risk_band": "LOW",
+  "fraud_flags": [],
+  "velocity_check_result": "No suspicious repeat attempts detected",
+  "blacklist_match": false,
+  "synthetic_identity_score": 5,
+  "recommended_action": "APPROVE"
+}

@@ -1,0 +1,72 @@
+{
+  "report_id": "sim_4a9e3d66",
+  "generated_at": "2026-04-05T17:28:39.239009+00:00",
+  "overall_confidence_score": 75,
+  "overall_passed": false,
+  "total_integrations_tested": 4,
+  "passed_count": 3,
+  "failed_count": 1,
+  "human_readable_summary": "The integration simulation completed with three successful integrations and one failure. The Twilio SMS integration failed due to missing mandatory field mappings for 'from' and 'account_sid', which are critical for API authentication and routing. All other integrations (Karza, CIBIL, and Penny Drop) passed validation with correct field mappings and transformation rules.",
+  "recommended_actions": [
+    "Update Twilio integration configuration to include mapping for 'from' (sender ID) and 'account_sid'.",
+    "Verify if 'account_sid' should be pulled from environment variables or static configuration.",
+    "Re-run simulation for Twilio integration after updating field mappings."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 2,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "from",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Critical failure: Mandatory fields 'from' and 'account_sid' are not mapped."
+    },
+    {
+      "integration_id": "int_pennydrop_001",
+      "adapter_id": "pennydrop",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "hooks": [
+    {
+      "id": "audit_emit_hook",
+      "name": "Audit Emit Hook",
+      "type": "audit",
+      "path": "audit_emit_hook.json"
+    },
+    {
+      "id": "credential_resolve_hook",
+      "name": "Credential Resolve Hook",
+      "type": "pre-call",
+      "path": "credential_resolve_hook.json"
+    },
+    {
+      "id": "field_encryption_hook",
+      "name": "Field Encryption Hook",
+      "type": "pre-call",
+      "path": "field_encryption_hook.json"
+    },
+    {
+      "id": "datadog_logging",
+      "name": "Datadog Request Logging",
+      "type": "post_call",
+      "path": "logging_hook.json"
+    },
+    {
+      "id": "on_failure_alert_hook",
+      "name": "On Failure Alert Hook",
+      "type": "on-failure",
+      "path": "on_failure_alert_hook.json"
+    },
+    {
+      "id": "post_schema_validation_hook",
+      "name": "Post Schema Validation Hook",
+      "type": "validation",
+      "path": "post_schema_validation_hook.json"
+    },
+    {
+      "id": "post_transform_hook",
+      "name": "Post Transform Hook",
+      "type": "post-call",
+      "path": "post_transform_hook.json"
+    },
+    {
+      "id": "pre_auth_hook",
+      "name": "Pre Auth Hook",
+      "type": "pre-call",
+      "path": "pre_auth_hook.json"
+    },
+    {
+      "id": "pre_validation_hook",
+      "name": "Pre Validation Hook",
+      "type": "validation",
+      "path": "pre_validation_hook.json"
+    },
+    {
+      "id": "rate_limit_guard_hook",
+      "name": "Rate Limit Guard Hook",
+      "type": "pre-call",
+      "path": "rate_limit_guard_hook.json"
+    },
+    {
+      "id": "retry_hook",
+      "name": "Retry Hook",
+      "type": "retry",
+      "path": "retry_hook.json"
+    },
+    {
+      "id": "simulation_intercept_hook",
+      "name": "Simulation Intercept Hook",
+      "type": "pre-call",
+      "path": "simulation_intercept_hook.json"
+    },
+    {
+      "id": "version_compatibility_hook",
+      "name": "Version Compatibility Hook",
+      "type": "pre-call",
+      "path": "version_compatibility_hook.json"
+    }
+  ]
+}

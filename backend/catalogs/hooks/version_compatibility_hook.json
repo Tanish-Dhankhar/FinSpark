@@ -1,0 +1,72 @@
+{
+  "hook_name": "version_compatibility_hook",
+  "hook_type": "pre-call",
+  "description": "Checks if the config version is deprecated and auto-suggests or applies stable fallbacks.",
+  "trigger_condition": "Before every adapter call, after credential check",
+  "applicable_adapters": [
+    "*"
+  ],
+  "lifecycle_state": "active",
+  "execution_order": 2,
+  "is_blocking": false,
+  "payload_template": {
+    "event": "version_upgrade_evaluation",
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "timestamp": "{{utc_timestamp}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Adapter Name",
+      "default_value": ""
+    },
+    {
+      "param_name": "selected_version",
+      "type": "string",
+      "required": true,
+      "description": "Version currently parsed by AI into config",
+      "default_value": ""
+    },
+    {
+      "param_name": "available_versions",
+      "type": "object",
+      "required": true,
+      "description": "Array of catalog versions",
+      "default_value": "[]"
+    },
+    {
+      "param_name": "deprecation_status",
+      "type": "boolean",
+      "required": true,
+      "description": "True if version is deprecated in catalog",
+      "default_value": "false"
+    }
+  ],
+  "output": {
+    "on_success": "version confirmed or version_override applied with reason logged",
+    "on_failure": "warning attached to simulation report, pipeline continues with selected version"
+  },
+  "timeout_ms": 300,
+  "retry_policy": {
+    "max_retries": 0,
+    "backoff_strategy": "none",
+    "initial_delay_ms": 0
+  },
+  "credential_env_vars": [],
+  "audit_on_trigger": true,
+  "error_codes": {
+    "HOOK_001": "Provided version string does not exist in catalog.",
+    "HOOK_002": "Failure parsing maturity matrices.",
+    "HOOK_003": "Warning: Auto-upgrade schema incompatible, falling back to deprecated version."
+  },
+  "example_log_entry": {
+    "hook_name": "version_compatibility_hook",
+    "triggered_at": "2026-04-02T10:30:26Z",
+    "client_id": "client_d22e81e7",
+    "adapter": "cibil",
+    "result": "OVERRIDE - Replaced deprecated v1 with stable v3."
+  }
+}

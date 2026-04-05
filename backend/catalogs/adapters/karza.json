@@ -1,0 +1,115 @@
+{
+  "adapter_name": "Karza KYC Provider",
+  "category": "kyc",
+  "description": "Verify identity credentials like PAN and Aadhaar against source bodies.",
+  "provider": "Karza Technologies",
+  "base_url": "https://api.karza.in",
+  "auth_type": "api_key",
+  "credential_env_vars": [
+    "KARZA_API_KEY"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/v1/verification",
+      "status": "deprecated",
+      "maturity_score": 4,
+      "deprecated": true,
+      "release_notes": "Older sync endpoint without facial match",
+      "sunset_date": "2025-09-30"
+    },
+    {
+      "version": "v2",
+      "endpoint": "/v2/kyc-engine/verify",
+      "status": "stable",
+      "maturity_score": 8,
+      "deprecated": false,
+      "release_notes": "Comprehensive suite including liveless check",
+      "sunset_date": "2028-12-31"
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "aadhaar_number",
+      "type": "string",
+      "description": "12 digit Aadhaar number",
+      "validation": "12 digit numeric"
+    },
+    {
+      "field_name": "pan_number",
+      "type": "string",
+      "description": "Customer PAN",
+      "validation": "10 char alphanumeric"
+    },
+    {
+      "field_name": "consent",
+      "type": "boolean",
+      "description": "True if customer provided explicit consent",
+      "validation": "boolean"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "dob",
+      "type": "date",
+      "description": "Date of birth to match",
+      "default_value": "null"
+    },
+    {
+      "field_name": "full_name",
+      "type": "string",
+      "description": "Name for fuzzy matching",
+      "default_value": "null"
+    },
+    {
+      "field_name": "mobile_number",
+      "type": "string",
+      "description": "10 digit mobile number",
+      "default_value": "null"
+    }
+  ],
+  "response_schema": {
+    "kyc_status": {
+      "type": "enum",
+      "description": "Enum: VERIFIED/PARTIAL/FAILED"
+    },
+    "name_match_score": {
+      "type": "integer",
+      "description": "Percentage similarity of names"
+    },
+    "pan_verified": {
+      "type": "boolean",
+      "description": "True if PAN is active and valid"
+    },
+    "aadhaar_verified": {
+      "type": "boolean",
+      "description": "True if Aadhaar is active and valid"
+    },
+    "address": {
+      "type": "string",
+      "description": "Central registered address fetched from vault"
+    },
+    "face_match_score": {
+      "type": "integer",
+      "description": "Image similarity score"
+    },
+    "liveness_check": {
+      "type": "string",
+      "description": "PASS or FAIL for proof of life"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid Aadhaar or missing consent.",
+    "401": "Invalid Karza API key.",
+    "404": "Identity data is missing at source.",
+    "422": "Unprocessable entity - Name format broken.",
+    "500": "NDML/UIDAI upstream failure from Karza."
+  },
+  "timeout_ms": 8000,
+  "retry_policy": {
+    "max_retries": 2,
+    "backoff_strategy": "fixed"
+  },
+  "sandbox_base_url": "https://sandbox-api.karza.in",
+  "fallback_adapter": "digilocker"
+}

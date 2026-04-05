@@ -1,0 +1,148 @@
+{
+  "adapter_name": "Perfios Account Aggregator",
+  "category": "banking",
+  "description": "Bank account aggregation and bank statement reading.",
+  "provider": "Perfios Account Aggregation Pvt Ltd",
+  "base_url": "https://api.perfios.com",
+  "auth_type": "oauth2",
+  "credential_env_vars": [
+    "PERFIOS_CLIENT_ID",
+    "PERFIOS_CLIENT_SECRET"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/v1/statements/analyze",
+      "status": "stable",
+      "maturity_score": 9,
+      "deprecated": false,
+      "release_notes": "Stable statement categorization",
+      "sunset_date": "2027-06-30"
+    },
+    {
+      "version": "v2",
+      "endpoint": "/v2/aa/statements",
+      "status": "beta",
+      "maturity_score": 6,
+      "deprecated": false,
+      "release_notes": "Live Account Aggregator FIP framework support",
+      "sunset_date": null
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "account_number",
+      "type": "string",
+      "description": "Customer bank account number",
+      "validation": "numeric max 18 chars"
+    },
+    {
+      "field_name": "ifsc_code",
+      "type": "string",
+      "description": "Bank branch IFSC",
+      "validation": "11 char alphanumeric"
+    },
+    {
+      "field_name": "customer_id",
+      "type": "string",
+      "description": "Tracking customer ID in lending DB",
+      "validation": "string"
+    },
+    {
+      "field_name": "date_range_from",
+      "type": "date",
+      "description": "Pull data starting from this date",
+      "validation": "ISO 8601 date"
+    },
+    {
+      "field_name": "date_range_to",
+      "type": "date",
+      "description": "Pull data ending at this date",
+      "validation": "ISO 8601 date"
+    },
+    {
+      "field_name": "consent_artifact",
+      "type": "string",
+      "description": "RBI AA consent JWT payload",
+      "validation": "JWT string"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "include_categorization",
+      "type": "boolean",
+      "description": "Perform ML category tagging on transactions",
+      "default_value": "true"
+    },
+    {
+      "field_name": "include_salary_detection",
+      "type": "boolean",
+      "description": "Detect probability of salary credits",
+      "default_value": "true"
+    }
+  ],
+  "response_schema": {
+    "avg_monthly_balance": {
+      "type": "integer",
+      "description": "Average collected balance over the period"
+    },
+    "min_balance": {
+      "type": "integer",
+      "description": "Lowest recorded balance in period"
+    },
+    "max_balance": {
+      "type": "integer",
+      "description": "Highest recorded balance in period"
+    },
+    "transaction_count": {
+      "type": "integer",
+      "description": "Total number of transactions"
+    },
+    "total_credits": {
+      "type": "integer",
+      "description": "Sum of all incoming money"
+    },
+    "total_debits": {
+      "type": "integer",
+      "description": "Sum of all outgoing money"
+    },
+    "salary_credits_detected": {
+      "type": "boolean",
+      "description": "True if a consistent salary pattern was found"
+    },
+    "estimated_monthly_salary": {
+      "type": "integer",
+      "description": "Deduced recurring salary payment"
+    },
+    "transaction_categories": {
+      "type": "array",
+      "description": "List of distinct spending categories matched"
+    },
+    "emi_payments_detected": {
+      "type": "array",
+      "description": "List of automated debits matching loan companies"
+    },
+    "bounce_count": {
+      "type": "integer",
+      "description": "Number of inward or outward clearing returns"
+    },
+    "account_vintage_months": {
+      "type": "integer",
+      "description": "Age of the account derived from statements"
+    }
+  },
+  "error_codes": {
+    "400": "Invalid date range or malformed consent artifact.",
+    "401": "Invalid OAuth credentials.",
+    "403": "Consent artifact expired.",
+    "422": "FIP rejection, bank system unavailable temporarily.",
+    "500": "Perfios internal rendering error."
+  },
+  "timeout_ms": 10000,
+  "retry_policy": {
+    "max_retries": 1,
+    "backoff_strategy": "exponential"
+  },
+  "sandbox_base_url": "https://sandbox-api.perfios.com",
+  "fallback_adapter": null
+}

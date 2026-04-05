@@ -1,0 +1,87 @@
+{
+  "report_id": "sim_9c1cd64c",
+  "generated_at": "2026-04-05T17:28:33.800693+00:00",
+  "overall_confidence_score": 80,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 3,
+  "failed_count": 2,
+  "human_readable_summary": "The integration simulation completed with 3 successful integrations and 2 failures. Critical field mapping issues were identified in the Perfios and Twilio integrations, where mandatory fields were missing from the configuration. Karza, CIBIL, and RiskGuard integrations passed all validation checks.",
+  "recommended_actions": [
+    "Add missing 'consent_artifact' field mapping to Perfios integration.",
+    "Add missing 'to' (destination phone) field mapping to Twilio integration.",
+    "Review and validate transformation rule logic for all PII fields.",
+    "Re-run simulation after updating integration configurations."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_perfios_001",
+      "adapter_id": "perfios",
+      "version_tested": "v2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "consent_artifact"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing mandatory field 'consent_artifact' detected."
+    },
+    {
+      "integration_id": "int_riskguard_001",
+      "adapter_id": "riskguard",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "to"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing mandatory field 'to' detected."
+    }
+  ]
+}

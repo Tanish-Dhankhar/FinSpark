@@ -1,0 +1,17 @@
+{
+  "avg_monthly_balance": 125000,
+  "min_balance": 15000,
+  "max_balance": 450000,
+  "transaction_count": 142,
+  "total_credits": 1850000,
+  "total_debits": 1720000,
+  "salary_credits_detected": true,
+  "estimated_monthly_salary": 95000,
+  "transaction_categories": ["salary", "rent", "utilities", "food", "shopping", "transfer"],
+  "emi_payments_detected": [
+    {"lender": "HDFC Bank", "amount": 12500, "frequency": "monthly"},
+    {"lender": "Bajaj Finance", "amount": 8000, "frequency": "monthly"}
+  ],
+  "bounce_count": 0,
+  "account_vintage_months": 48
+}

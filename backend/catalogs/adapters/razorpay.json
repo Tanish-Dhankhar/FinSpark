@@ -1,0 +1,146 @@
+{
+  "adapter_name": "Razorpay Payments",
+  "category": "payment",
+  "description": "Create orders and process payments through Razorpay gateway.",
+  "provider": "Razorpay Software Pvt Ltd",
+  "base_url": "https://api.razorpay.com",
+  "auth_type": "basic_auth",
+  "credential_env_vars": [
+    "RAZORPAY_KEY_ID",
+    "RAZORPAY_KEY_SECRET"
+  ],
+  "versions": [
+    {
+      "version": "v1",
+      "endpoint": "/v1/orders",
+      "status": "stable",
+      "maturity_score": 9,
+      "deprecated": false,
+      "release_notes": "Standard order creation endpoint",
+      "sunset_date": "2027-12-31"
+    },
+    {
+      "version": "v2",
+      "endpoint": "/v2/orders",
+      "status": "beta",
+      "maturity_score": 6,
+      "deprecated": false,
+      "release_notes": "Beta optimized routing endpoint",
+      "sunset_date": null
+    }
+  ],
+  "required_fields": [
+    {
+      "field_name": "order_amount",
+      "type": "integer",
+      "description": "Order transaction amount in paise (1 INR = 100 paise)",
+      "validation": "Positive integer"
+    },
+    {
+      "field_name": "currency",
+      "type": "enum",
+      "description": "Currency abbreviation",
+      "validation": "Enum: INR/USD"
+    },
+    {
+      "field_name": "customer_id",
+      "type": "string",
+      "description": "ID of the customer",
+      "validation": "Alphanumeric string"
+    },
+    {
+      "field_name": "order_id",
+      "type": "string",
+      "description": "Unique order ID from internal system",
+      "validation": "Alphanumeric up to 40 chars"
+    },
+    {
+      "field_name": "payment_method",
+      "type": "enum",
+      "description": "Payment instrument utilized",
+      "validation": "Enum: upi/card/netbanking/wallet"
+    }
+  ],
+  "optional_fields": [
+    {
+      "field_name": "description",
+      "type": "string",
+      "description": "Description of the payment",
+      "default_value": "Payment for services"
+    },
+    {
+      "field_name": "receipt",
+      "type": "string",
+      "description": "Receipt reference",
+      "default_value": "null"
+    },
+    {
+      "field_name": "notes",
+      "type": "string",
+      "description": "JSON notes object stringified",
+      "default_value": "{}"
+    },
+    {
+      "field_name": "callback_url",
+      "type": "string",
+      "description": "URL to redirect/webhook after payment",
+      "default_value": "null"
+    }
+  ],
+  "response_schema": {
+    "payment_id": {
+      "type": "string",
+      "description": "Unique Razorpay payment ID"
+    },
+    "order_id": {
+      "type": "string",
+      "description": "Associated razorpay order id"
+    },
+    "status": {
+      "type": "enum",
+      "description": "Enum: created/authorized/captured/failed"
+    },
+    "method": {
+      "type": "string",
+      "description": "Payment method captured"
+    },
+    "amount_paid": {
+      "type": "integer",
+      "description": "Actual amount paid in paise"
+    },
+    "fee": {
+      "type": "integer",
+      "description": "Razorpay fee in paise"
+    },
+    "tax": {
+      "type": "integer",
+      "description": "Tax on fee in paise"
+    },
+    "upi_transaction_ref": {
+      "type": "string",
+      "description": "RRN if UPI"
+    },
+    "bank_reference": {
+      "type": "string",
+      "description": "Bank specific reference number"
+    },
+    "captured_at": {
+      "type": "integer",
+      "description": "Unix epoch timestamp"
+    }
+  },
+  "error_codes": {
+    "400": "Bad request on amount or currency.",
+    "401": "Invalid basic auth credentials.",
+    "404": "Order or Payment not found.",
+    "429": "Exceeded Razorpay rate limit.",
+    "500": "Razorpay internal upstream failure."
+  },
+  "timeout_ms": 5000,
+  "retry_policy": {
+    "max_retries": 1,
+    "backoff_strategy": "fixed"
+  },
+  "sandbox_base_url": "https://api.razorpay.com/sandbox",
+  "fallback_adapter": null
+}

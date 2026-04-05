@@ -1,0 +1,14 @@
+{
+  "message_sid": "SM1234567890abcdef1234567890abcdef",
+  "account_sid": "Mock_Twilio_Account_SID_12345678",
+  "to": "+919876543210",
+  "from": "+14155552671",
+  "body": "Your loan application #LA1234 has been approved. Amount: INR 5,00,000.",
+  "status": "delivered",
+  "direction": "outbound-api",
+  "price": "-0.0075",
+  "price_unit": "USD",
+  "date_sent": "2026-03-15T10:30:00Z",
+  "error_code": null,
+  "error_message": null
+}

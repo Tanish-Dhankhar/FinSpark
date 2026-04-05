@@ -1,0 +1,9 @@
+{
+  "document_url": "https://api.digitallocker.gov.in/v2/documents/d/DOC123456",
+  "document_id": "DOC123456",
+  "issuer": "Income Tax Department",
+  "issue_date": "2024-03-15",
+  "verification_status": "VERIFIED",
+  "name_on_document": "Rahul Sharma",
+  "expiry_date": null
+}
