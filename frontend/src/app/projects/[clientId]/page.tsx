@@ -894,14 +894,14 @@ function IntegrationsTab({ integrations, clientId, onMigrated }: any) {
           <div onClick={() => setExpanded(expanded === idx ? null : idx)}
             style={{ padding: "18px 22px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", transition: "background 0.15s" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{integ.service_name}</span>
-              <span className={`badge ${CAT_BADGE[integ.category] || "badge-slate"}`}>{integ.category}</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{integ.service_name || integ.integration_id || "Unknown"}</span>
+              <span className={`badge ${CAT_BADGE[integ.category] || "badge-slate"}`}>{integ.category || "General"}</span>
               {integ.is_mandatory && <span className="badge badge-rose">required</span>}
               {deprecated && <span className="badge badge-amber" style={{ fontWeight: 700 }}>DEPRECATED</span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 16, color: "var(--text-muted)", fontSize: 12.5 }}>
-              <span>{integ.adapter_id}</span>
-              <span className={`badge ${deprecated ? "badge-amber" : "badge-slate"}`}>{integ.selected_version}</span>
+              <span>{integ.adapter_id || "Unknown Adapter"}</span>
+              <span className={`badge ${deprecated ? "badge-amber" : "badge-slate"}`}>{integ.selected_version || "v1"}</span>
               {integ.sunset_date && (
                 <span style={{ fontSize: 11, color: sunsetPassed ? "#dc2626" : "var(--text-muted)" }}>
                   {sunsetPassed ? "Sunset: " : "Sunset: "}{integ.sunset_date}
@@ -968,7 +968,7 @@ function IntegrationsTab({ integrations, clientId, onMigrated }: any) {
                   <h4 style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.6px" }}>Connection</h4>
                   <InfoRow label="Endpoint" value={integ.endpoint_url} />
                   <InfoRow label="Auth" value={integ.auth_type} />
-                  <InfoRow label="Timeout" value={`${integ.timeout_ms}ms`} />
+                  <InfoRow label="Timeout" value={integ.timeout_ms ? `${integ.timeout_ms}ms` : undefined} />
                   <InfoRow label="Sandbox" value={integ.sandbox_url} />
                   <InfoRow label="Credentials" value={(integ.credential_env_vars || []).join(", ")} />
                   <InfoRow label="Deprecated" value={integ.deprecated ? "Yes" : "No"} />

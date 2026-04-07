@@ -122,17 +122,24 @@ def run_stage5(client_id: str) -> dict:
     if "metadata" not in cleaned_config:
         cleaned_config["metadata"] = current_config.get("metadata", {})
 
-    # ── Merge hooks back if the LLM dropped them during cleaning ─────────
+    # ── Restore ANY dropped fields in integrations ─────────
     for orig_integ in current_config.get("integrations", []):
-        key = orig_integ.get("adapter_id") or orig_integ.get("integration_id") or orig_integ.get("service_name", "")
-        orig_hooks = orig_integ.get("hooks", [])
-        if not key or not orig_hooks:
+        key = orig_integ.get("integration_id") or orig_integ.get("adapter_id") or orig_integ.get("service_name", "")
+        if not key:
             continue
         for cleaned_integ in cleaned_config.get("integrations", []):
-            ckey = cleaned_integ.get("adapter_id") or cleaned_integ.get("integration_id") or cleaned_integ.get("service_name", "")
-            if ckey == key and not cleaned_integ.get("hooks"):
-                cleaned_integ["hooks"] = orig_hooks
-                print(f"     🪝 Restored hooks for '{key}' (cleaner dropped them)")
+            ckey = cleaned_integ.get("integration_id") or cleaned_integ.get("adapter_id") or cleaned_integ.get("service_name", "")
+            if ckey == key:
+                # Restore hooks specifically to print a message
+                if "hooks" in orig_integ and "hooks" not in cleaned_integ:
+                    print(f"     🪝 Restored hooks for '{key}' (cleaner dropped them)")
+                # Restore all missing fields
+                for k, v in orig_integ.items():
+                    if k.endswith("_reason") or k == "mapping_reason":
+                        continue
+                    if k not in cleaned_integ:
+                        cleaned_integ[k] = v
+                break
 
     # Post-process
     cleaned_config = _post_process_clean(cleaned_config)

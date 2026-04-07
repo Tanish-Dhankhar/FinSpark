@@ -124,6 +124,17 @@
       ],
       "path": "stripe_payment_adapter.json",
       "maturity_score": 8
+    },
+    {
+      "id": "Aarogya_Health_API",
+      "name": "Aarogya Health API",
+      "category": "health_records",
+      "versions": [
+        "v1.0",
+        "v1.2"
+      ],
+      "path": "Aarogya_Health_API.json",
+      "maturity_score": 8
     }
   ]
 }

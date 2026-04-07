@@ -11,23 +11,20 @@ FinSpark is an AI orchestrated integration engine with both a Python backend and
 
 ### Backend
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+1. Work from the project root directory (where `requirements.txt` is located).
 2. Create and activate a virtual environment (optional but recommended):
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows use `.\.venv\Scripts\activate`
    ```
 3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-4. Setup environment variables by copying `.env.example` to `.env` if needed, or ensuring your API keys (e.g., `GEMINI_API_KEY`) are set in `.env`.
+4. Setup environment variables by copying `.env.example` to `.env` if needed, or ensuring your API keys (e.g., `GOOGLE_API_KEY`) are set in `.env`.
 5. Run the server:
    ```bash
-   uvicorn main:app --reload
+   uvicorn backend.main:app --reload
    ```
    The backend runs on `http://127.0.0.1:8000`.
 
