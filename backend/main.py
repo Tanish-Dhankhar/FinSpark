@@ -2,6 +2,12 @@
 FinSpark — AI Integration Orchestration Engine
 FastAPI Entry Point
 """
+import sys
+import io
+if sys.stdout is not None:
+    sys.stdout = io.TextIOWrapper(getattr(sys.stdout, 'buffer', getattr(sys.stdout, '_buffer', sys.stdout)), encoding='utf-8', errors='replace')
+if sys.stderr is not None:
+    sys.stderr = io.TextIOWrapper(getattr(sys.stderr, 'buffer', getattr(sys.stderr, '_buffer', sys.stderr)), encoding='utf-8', errors='replace')
 import json
 import shutil
 import asyncio

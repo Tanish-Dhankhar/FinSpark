@@ -275,10 +275,29 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
     )
 
     # Validate and fallback
-    if "integrations" not in enriched_config:
-        enriched_config["integrations"] = current_config.get("integrations", [])
-    if "metadata" not in enriched_config:
-        enriched_config["metadata"] = current_config.get("metadata", {})
+    if isinstance(enriched_config, list):
+        generated_integrations = enriched_config
+    elif isinstance(enriched_config, dict):
+        generated_integrations = enriched_config.get("integrations", [])
+    else:
+        generated_integrations = []
+
+    for old_integ in current_config.get("integrations", []):
+        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
+        for new_integ in generated_integrations:
+            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
+            if old_id and new_id and old_id == new_id:
+                old_integ.update(new_integ)
+                break
+        
+        # Enforce exact adapter_id from step 3a matching
+        for m in matched:
+            if m.get("service_name") == old_integ.get("service_name"):
+                old_integ["adapter_id"] = m.get("adapter_id")
+                if not old_integ.get("selected_version"):
+                    old_integ["selected_version"] = m.get("recommended_version")
+
+    enriched_config = current_config
 
     # ── Deterministic enforcement: deprecated + sunset_date ───────────
     # LLM may omit these fields; force-set them from adapter catalog data.
@@ -356,10 +375,22 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         system_instruction=HOOK_FILL_SYSTEM,
     )
 
-    if "integrations" not in config_with_hooks:
-        config_with_hooks["integrations"] = current_config.get("integrations", [])
-    if "metadata" not in config_with_hooks:
-        config_with_hooks["metadata"] = current_config.get("metadata", {})
+    if isinstance(config_with_hooks, list):
+        generated_integrations = config_with_hooks
+    elif isinstance(config_with_hooks, dict):
+        generated_integrations = config_with_hooks.get("integrations", [])
+    else:
+        generated_integrations = []
+
+    for old_integ in current_config.get("integrations", []):
+        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
+        for new_integ in generated_integrations:
+            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
+            if old_id and new_id and old_id == new_id:
+                if "hooks" in new_integ:
+                    old_integ["hooks"] = new_integ["hooks"]
+                break
+    config_with_hooks = current_config
 
     save_config(client_id, config_with_hooks)
     print(f"     ✅ Hooks populated in config")
@@ -398,28 +429,24 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         system_instruction=FIELD_MAPPING_SYSTEM,
     )
 
-    if "integrations" not in config_with_mappings:
-        config_with_mappings["integrations"] = current_config.get("integrations", [])
-    if "metadata" not in config_with_mappings:
-        config_with_mappings["metadata"] = current_config.get("metadata", {})
+    if isinstance(config_with_mappings, list):
+        generated_integrations = config_with_mappings
+    elif isinstance(config_with_mappings, dict):
+        generated_integrations = config_with_mappings.get("integrations", [])
+    else:
+        generated_integrations = []
 
-    # ── Merge hooks back if the LLM dropped them during field mapping ────
-    # Build a lookup from the config that had hooks (current_config = post-3e)
-    hooks_by_integration = {}
-    for integ in current_config.get("integrations", []):
-        key = integ.get("adapter_id") or integ.get("integration_id") or integ.get("service_name", "")
-        if key and integ.get("hooks"):
-            hooks_by_integration[key] = integ["hooks"]
-
-    hooks_restored = 0
-    for integ in config_with_mappings.get("integrations", []):
-        key = integ.get("adapter_id") or integ.get("integration_id") or integ.get("service_name", "")
-        if not integ.get("hooks") and key in hooks_by_integration:
-            integ["hooks"] = hooks_by_integration[key]
-            hooks_restored += 1
-
-    if hooks_restored:
-        print(f"     🪝 Restored hooks for {hooks_restored} integration(s) (LLM dropped them during field mapping)")
+    for old_integ in current_config.get("integrations", []):
+        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
+        for new_integ in generated_integrations:
+            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
+            if old_id and new_id and old_id == new_id:
+                if "field_mapping" in new_integ:
+                    old_integ["field_mapping"] = new_integ["field_mapping"]
+                if "transformation_rules" in new_integ:
+                    old_integ["transformation_rules"] = new_integ["transformation_rules"]
+                break
+    config_with_mappings = current_config
 
     save_config(client_id, config_with_mappings)
 

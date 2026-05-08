@@ -1,48 +1,51 @@
 # Integration Reasoning Report
 
 ## 1. Adapter Selection Rationale
+The pipeline performed an automated matching process based on the service requirements defined in the NexGen BRD.
 
-| Integration | Adapter ID | Rationale |
-| :--- | :--- | :--- |
-| **Karza KYC** | `karza` | Selected for identity verification; aligns with BRD requirement for government-issued ID and PAN validation. |
-| **TransUnion CIBIL** | `cibil` | Selected as the industry-standard credit bureau for Indian financial services to assess repayment risk. |
-| **Twilio SMS** | `twilio` | Selected for reliable, scalable SMS notifications as required for application milestones. |
-| **Penny Drop** | `pennydrop` | Selected for bank account verification; provides the necessary API to validate account status and holder name. |
+*   **Karza KYC Provider (`int_karza_001`):** Selected to fulfill the identity verification requirement. Chosen for its comprehensive support for Aadhaar and PAN validation in the Indian market.
+*   **TransUnion CIBIL Bureau (`int_cibil_001`):** Selected as the primary credit bureau provider. Chosen for its industry-standard compliance with Indian lending regulations.
+*   **Penny Drop / Account Verification (`int_pennydrop_001`):** Selected to fulfill the bank account validation requirement. Chosen for its ability to verify account holder names against bank records.
+*   **Twilio SMS (`int_twilio_001`):** Selected for automated notification requirements. Chosen for its robust API support for DLT-registered sender IDs.
 
 ## 2. Version Selection & Deprecation Notices
+Versions were selected based on current stability and compatibility with the requested integration endpoints.
 
-*   **Karza KYC (v2):** Selected as the current stable version for KYC engine verification.
-*   **TransUnion CIBIL (v3):** Selected as the current stable version for consumer credit scoring.
-*   **Twilio SMS (v3):** Selected as the current stable version for the Messages API.
-*   **Penny Drop (v1):** Selected as the stable version for RazorpayX fund account verification.
+*   **Karza (v2):** Current stable version for KYC engine.
+*   **CIBIL (v3):** Current stable version for consumer credit scoring.
+*   **Penny Drop (v1):** Current stable version for fund account verification.
+*   **Twilio (v3):** Current stable version for messaging.
 
-*Note: No deprecation warnings are currently active for these selected versions.*
+*Note: No deprecation notices are currently active for these versions.*
 
 ## 3. Missing Required Fields
+The following fields were identified as missing during the mapping process:
 
-The following fields are required by the respective APIs but were not found in the provided BRD. These must be injected at runtime or configured via environment variables:
+| Integration | Missing Field | Reason |
+| :--- | :--- | :--- |
+| **Penny Drop** | `transfer_amount` | The BRD does not specify a transaction amount for the penny drop verification. |
 
-*   **Twilio SMS (`int_twilio_001`):**
-    *   `from`: Missing sender ID. ⚠️ **Warning:** The API requires a verified Twilio phone number or alphanumeric sender ID to initiate messages.
-    *   `account_sid`: Missing Account SID. ⚠️ **Warning:** This is a mandatory identifier for the Twilio account; it must be provided at runtime.
+⚠️ **Warning:** The `transfer_amount` field is mandatory for the Penny Drop API to execute. This must be injected at runtime or configured as a static default value in the environment variables.
 
 ## 4. Unmatched APIs / Services
-
-The integration pipeline has successfully mapped all service categories requested in the BRD (Identity/KYC, Credit Bureau, Banking Verification, and SMS). No additional services were requested in the BRD that remain unaddressed.
+The pipeline successfully mapped all functional requirements identified in the BRD to the available adapters. No additional services were requested in the BRD that remain unaddressed.
 
 ## 5. Field Mapping Summary
 
-| Integration | Mapped Fields | Missing Fields | Notes |
+| Integration | Total Mapped | Total Required | Notes |
 | :--- | :--- | :--- | :--- |
-| **Karza KYC** | 3 | 0 | Aadhaar and PAN fields are subject to AES-256 encryption. |
-| **TransUnion CIBIL** | 4 | 0 | PAN field is subject to AES-256 encryption. |
-| **Twilio SMS** | 2 | 2 | Requires runtime injection of `from` and `account_sid`. |
-| **Penny Drop** | 4 | 0 | Includes one computed field (`transfer_amount` = 1). Account number is encrypted. |
+| **Karza** | 3 | 3 | Includes AES-256 encryption for PII (Aadhaar/PAN). |
+| **CIBIL** | 5 | 5 | Includes computed `consent_timestamp` (ISO 8601). |
+| **Penny Drop** | 3 | 4 | 1 field missing (`transfer_amount`). |
+| **Twilio** | 4 | 4 | Direct mapping for SMS body and routing. |
+
+*   **Transformations:** 
+    *   Karza: Aadhaar and PAN fields are encrypted via `field_encryption_hook`.
+    *   CIBIL: Consent timestamp is dynamically generated at runtime.
 
 ## 6. Overall Assessment
+*   **Integration Coverage:** High. All core business requirements (Identity, Credit, Banking, Messaging) are mapped to stable, industry-standard providers.
+*   **Critical Gaps:** The only critical gap is the missing `transfer_amount` for the Penny Drop service. The pipeline is otherwise configured to handle the requested fallback and retry logic via the registered `retry_hook` and `on_failure_alert_hook`.
+*   **Confidence Level:** High. The configuration aligns with the security requirements (encryption of PII, secure credential handling) and the functional requirements outlined in the BRD.
 
-*   **Integration Coverage:** High. All primary business requirements defined in the BRD have been mapped to functional adapters.
-*   **Critical Gaps:** The primary gap is the missing configuration for Twilio's `from` and `account_sid` parameters. While the pipeline is technically sound, these values are mandatory for the SMS service to function.
-*   **Confidence Level:** **High**. The pipeline has successfully identified the necessary adapters and applied the required security hooks (encryption) and orchestration logic (retry/failure handling) as specified in the BRD.
-
-**Reviewer Action Required:** Please provide the missing Twilio configuration parameters (`from` number and `account_sid`) to complete the integration setup.
+**Reviewer Action Required:** Please define the `transfer_amount` value for the Penny Drop integration before moving to production deployment.

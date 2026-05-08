@@ -1,0 +1,78 @@
+{
+  "report_id": "sim_c6e7820f",
+  "generated_at": "2026-04-07T00:47:09.414887+00:00",
+  "overall_confidence_score": 45,
+  "overall_passed": false,
+  "total_integrations_tested": 4,
+  "passed_count": 1,
+  "failed_count": 3,
+  "human_readable_summary": "The simulation failed to execute properly across all integrations due to missing mock adapter configurations. While Karza integration appears structurally sound, Razorpay and Twilio integrations have significant gaps in mandatory field mappings, and all integrations lack actual API response validation.",
+  "recommended_actions": [
+    "Provision mock adapter files for all integration IDs to enable actual response validation.",
+    "Define missing mandatory fields for Razorpay (currency, order_id, payment_method).",
+    "Define missing mandatory fields for Twilio (from, body, account_sid).",
+    "Verify adapter_id mapping in the configuration to resolve 'unknown' adapter status."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Mapping is complete, but simulation failed due to missing mock adapter."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Mapping is complete, but simulation failed due to missing mock adapter."
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": -20,
+      "fields_mapped_correctly": 2,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "currency",
+        "order_id",
+        "payment_method"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Three mandatory fields are missing from the mapping configuration."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "unknown",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": -25,
+      "fields_mapped_correctly": 1,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Three mandatory fields are missing from the mapping configuration."
+    }
+  ]
+}

@@ -610,7 +610,7 @@
       "category": "messaging",
       "is_mandatory": true,
       "status": "adapter_matched",
-      "selected_version": "v3",
+      "selected_version": "v1",
       "endpoint_url": "https://api.twilio.com/v3/Accounts/{AccountSid}/Messages.json",
       "auth_type": "basic_auth",
       "credential_env_vars": [
@@ -714,7 +714,7 @@
       "sandbox_url": "https://api.twilio.com/sandbox",
       "fallback_adapter": null,
       "deprecated": false,
-      "sunset_date": "2031-12-31"
+      "sunset_date": "2025-12-31"
     }
   ],
   "diff_history": {

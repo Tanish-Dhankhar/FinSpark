@@ -155,6 +155,25 @@ def run_stage7(client_id: str) -> dict:
         system_instruction=REPORT_SYSTEM,
     )
 
+    # ── Enforce mathematical correctness (LLMs are bad at math) ──
+    integration_results = report.get("integration_results", [])
+    if integration_results:
+        passed_count = sum(1 for ir in integration_results if ir.get("status", "").lower() == "passed")
+        failed_count = len(integration_results) - passed_count
+        total_score = sum(ir.get("confidence_score", 0) for ir in integration_results)
+        
+        report["passed_count"] = passed_count
+        report["failed_count"] = failed_count
+        report["total_integrations_tested"] = len(integration_results)
+        report["overall_passed"] = (failed_count == 0)
+        report["overall_confidence_score"] = round(total_score / len(integration_results))
+    else:
+        report["overall_confidence_score"] = 0
+        report["passed_count"] = 0
+        report["failed_count"] = 0
+        report["total_integrations_tested"] = 0
+        report["overall_passed"] = False
+
     # Save report
     reports_dir = CLIENTS_DIR / client_id / "simulation_reports"
     reports_dir.mkdir(parents=True, exist_ok=True)

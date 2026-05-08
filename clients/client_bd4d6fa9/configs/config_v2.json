@@ -1,0 +1,758 @@
+{
+  "metadata": {
+    "config_id": "config_2a13301a38bc",
+    "config_version": "v2",
+    "created_at": "2026-04-08T00:57:46.689789+00:00",
+    "last_updated_at": "2026-04-08T01:08:48.861128+00:00",
+    "status": "production-ready",
+    "client": {
+      "client_id": "client_bd4d6fa9",
+      "client_name": "Care_First",
+      "industry_vertical": "Healthcare Finance / NBFC",
+      "region": "India",
+      "environment": "production"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "CareFirst_BRD.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_a29b0f80",
+      "triggered_by": "document_update_rerun",
+      "triggered_at": "2026-04-08T01:03:34.205778+00:00",
+      "overall_status": "completed",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3,
+      "human_review_status": "approved",
+      "human_reviewer": "human_reviewer",
+      "completed_at": "2026-04-08T01:08:42.132464+00:00"
+    }
+  },
+  "credential_vault": {
+    "vault_provider": "env_file",
+    "credentials": []
+  },
+  "integrations": [
+    {
+      "integration_id": "int_karza_001",
+      "service_name": "Karza KYC Provider",
+      "adapter_id": "karza",
+      "category": "kyc",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v2",
+      "endpoint_url": "https://api.karza.in/v2/kyc-engine/verify",
+      "auth_type": "api_key",
+      "credential_env_vars": [
+        "$KARZA_API_KEY"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "Aadhaar Number",
+          "api_field": "aadhaar_number",
+          "mapping_type": "direct",
+          "description": "Maps user Aadhaar to Karza Aadhaar field"
+        },
+        {
+          "user_field": "PAN Number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to Karza PAN field"
+        },
+        {
+          "user_field": "Consent to eKYC",
+          "api_field": "consent",
+          "mapping_type": "direct",
+          "description": "Maps user consent to boolean"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Aadhaar Number",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Masking and encryption of PII",
+          "example": "encrypt(aadhaar_number) -> masked_aadhaar"
+        },
+        {
+          "source_field": "PAN Number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Encryption of PAN",
+          "example": "encrypt(pan_number) -> encrypted_pan"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 5,
+          "is_blocking": true,
+          "trigger_condition": "Before payload leaves instance if adapter needs encryption",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "post_schema_validation_hook",
+          "hook_name": "post_schema_validation_hook",
+          "hook_type": "validation",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "After post_transform_hook",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "service_name": "TransUnion CIBIL Bureau",
+      "adapter_id": "cibil",
+      "category": "bureau",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.cibil.com/v3/consumer/score",
+      "auth_type": "oauth2",
+      "credential_env_vars": [
+        "$CIBIL_OAUTH_CLIENT_ID",
+        "$CIBIL_OAUTH_CLIENT_SECRET"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "PAN Number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to CIBIL PAN field"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps user name to CIBIL name field"
+        },
+        {
+          "user_field": "Date of Birth",
+          "api_field": "date_of_birth",
+          "mapping_type": "direct",
+          "description": "Maps user DOB to CIBIL DOB field"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "mobile_number",
+          "mapping_type": "direct",
+          "description": "Maps user mobile to CIBIL mobile field"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Date of Birth",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD/MM/YYYY to ISO 8601",
+          "example": "01/01/1990 -> 1990-01-01"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 5,
+          "is_blocking": true,
+          "trigger_condition": "Before payload leaves instance if adapter needs encryption",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "post_schema_validation_hook",
+          "hook_name": "post_schema_validation_hook",
+          "hook_type": "validation",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "After post_transform_hook",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "service_name": "Razorpay Payments",
+      "adapter_id": "razorpay",
+      "category": "payment",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v1",
+      "endpoint_url": "https://api.razorpay.com/v1/orders",
+      "auth_type": "basic_auth",
+      "credential_env_vars": [
+        "$RAZORPAY_KEY_ID",
+        "$RAZORPAY_KEY_SECRET"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "Loan Amount Requested",
+          "api_field": "order_amount",
+          "mapping_type": "computed",
+          "description": "Convert INR to paise"
+        },
+        {
+          "user_field": null,
+          "api_field": "currency",
+          "mapping_type": "missing",
+          "description": "Currency not explicitly mapped from BRD"
+        },
+        {
+          "user_field": null,
+          "api_field": "customer_id",
+          "mapping_type": "missing",
+          "description": "Customer ID not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "order_id",
+          "mapping_type": "missing",
+          "description": "Internal order ID not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "payment_method",
+          "mapping_type": "missing",
+          "description": "Payment method not provided"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Loan Amount Requested",
+          "target_field": "order_amount",
+          "rule_type": "type_cast",
+          "rule": "Multiply by 100 to convert INR to paise",
+          "example": "1000 -> 100000"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_aarogya_001",
+      "service_name": "Aarogya Health API",
+      "adapter_id": "Aarogya_Health_API",
+      "category": "health_records",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v1.2",
+      "endpoint_url": "https://api.aarogya.health.gov.in/v1.2/patient/healthrecord",
+      "auth_type": "oauth2_authorization_code",
+      "credential_env_vars": [
+        "$AAROGYA_CLIENT_ID",
+        "$AAROGYA_CLIENT_SECRET",
+        "$AAROGYA_OAUTH_TOKEN_URL",
+        "$AAROGYA_CONSENT_REDIRECT_URI"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "ABHA Number",
+          "api_field": "abha_number",
+          "mapping_type": "direct",
+          "description": "Maps ABHA to API"
+        },
+        {
+          "user_field": "Aadhaar Number",
+          "api_field": "aadhaar_number",
+          "mapping_type": "direct",
+          "description": "Maps Aadhaar to API"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps name to API"
+        },
+        {
+          "user_field": "Date of Birth",
+          "api_field": "date_of_birth",
+          "mapping_type": "direct",
+          "description": "Maps DOB to API"
+        },
+        {
+          "user_field": "Medical Procedure Name",
+          "api_field": "declared_procedure_name",
+          "mapping_type": "direct",
+          "description": "Maps procedure name to API"
+        },
+        {
+          "user_field": "Hospital Registration Number",
+          "api_field": "empanelled_hospital_registration_number",
+          "mapping_type": "direct",
+          "description": "Maps hospital reg number to API"
+        },
+        {
+          "user_field": "Loan Amount Requested",
+          "api_field": "loan_amount_requested",
+          "mapping_type": "direct",
+          "description": "Maps loan amount to API"
+        },
+        {
+          "user_field": "Consent to Health Record Access",
+          "api_field": "consent_token",
+          "mapping_type": "direct",
+          "description": "Maps consent to token"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Aadhaar Number",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Masking and encryption of PII",
+          "example": "encrypt(aadhaar_number) -> masked_aadhaar"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "service_name": "Twilio SMS",
+      "adapter_id": "twilio",
+      "category": "messaging",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.twilio.com/v3/Accounts/{AccountSid}/Messages.json",
+      "auth_type": "basic_auth",
+      "credential_env_vars": [
+        "$TWILIO_ACCOUNT_SID",
+        "$TWILIO_AUTH_TOKEN"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "Mobile Number",
+          "api_field": "to",
+          "mapping_type": "direct",
+          "description": "Maps mobile to destination"
+        },
+        {
+          "user_field": null,
+          "api_field": "from",
+          "mapping_type": "missing",
+          "description": "Sender ID not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "body",
+          "mapping_type": "missing",
+          "description": "Message body not provided"
+        },
+        {
+          "user_field": null,
+          "api_field": "account_sid",
+          "mapping_type": "missing",
+          "description": "Account SID not provided"
+        }
+      ],
+      "transformation_rules": [],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    }
+  ],
+  "simulation_report": {
+    "report_id": "sim_ec2f35d6",
+    "generated_at": "2026-04-08T01:08:42.132464+00:00",
+    "overall_confidence_score": 60,
+    "overall_passed": false,
+    "total_integrations_tested": 5,
+    "passed_count": 3,
+    "failed_count": 2,
+    "human_readable_summary": "The integration simulation indicates mixed results. While Karza, CIBIL, and Twilio integrations are functioning with valid mock responses, the Razorpay integration suffers from significant field mapping gaps, and the Aarogya Health API integration failed due to the absence of a mock response file. Immediate attention is required to resolve missing field mappings and provide necessary mock data for health record testing.",
+    "recommended_actions": [
+      "Define missing mandatory fields for Razorpay (currency, customer_id, order_id, payment_method).",
+      "Create and upload a mock response file for Aarogya Health API v1.2.",
+      "Verify if Twilio's missing 'from' and 'body' fields are intended to be dynamic or static.",
+      "Review field mapping documentation for Razorpay to ensure all required API parameters are satisfied."
+    ],
+    "integration_results": [
+      {
+        "integration_id": "int_karza_001",
+        "adapter_id": "karza",
+        "version_tested": "v2",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 3,
+        "total_required_fields": 3,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "All fields mapped and transformation rules verified."
+      },
+      {
+        "integration_id": "int_cibil_001",
+        "adapter_id": "cibil",
+        "version_tested": "v3",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 4,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "All fields mapped and transformation rules verified."
+      },
+      {
+        "integration_id": "int_razorpay_001",
+        "adapter_id": "razorpay",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": 20,
+        "fields_mapped_correctly": 1,
+        "total_required_fields": 5,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "currency",
+          "customer_id",
+          "order_id",
+          "payment_method"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Multiple mandatory fields are missing from the mapping configuration."
+      },
+      {
+        "integration_id": "int_aarogya_001",
+        "adapter_id": "Aarogya_Health_API",
+        "version_tested": "v1.2",
+        "status": "failed",
+        "confidence_score": 0,
+        "fields_mapped_correctly": 0,
+        "total_required_fields": 8,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "all_fields"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Integration failed due to missing mock response file."
+      },
+      {
+        "integration_id": "int_twilio_001",
+        "adapter_id": "twilio",
+        "version_tested": "v3",
+        "status": "warning",
+        "confidence_score": 80,
+        "fields_mapped_correctly": 1,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "from",
+          "body",
+          "account_sid"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Only destination mobile number is mapped; sender and body are missing."
+      }
+    ],
+    "report_file_path": "C:\\Users\\happy\\Desktop\\college\\hackathons\\Finspark\\submission-1comeRnd\\FinSpark_final\\clients\\client_bd4d6fa9\\simulation_reports\\simulation_report_20260408_063848.json"
+  }
+}

@@ -1,0 +1,634 @@
+{
+  "overall_confidence_score": 100.0,
+  "passed_count": 5,
+  "failed_count": 0,
+  "total_integrations_tested": 5,
+  "human_readable_summary": "Fidelity 100.0% \u2014 5/5 positive passed, 15/15 faults handled.",
+  "recommended_actions": [],
+  "integration_results": [
+    {
+      "integration_id": "karza",
+      "adapter_id": "karza",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "notes": "",
+      "scenarios": [
+        {
+          "scenario": "success",
+          "label": "Normal Success",
+          "category": "positive",
+          "expected_outcome": "200 OK with valid response",
+          "outcome_matched": true,
+          "response_code": 200,
+          "response_time_ms": 153,
+          "mock_response": {
+            "_mock": true,
+            "status": "simulated",
+            "response_code": 200
+          },
+          "fields_validated": 3,
+          "details": "API responded in 153ms. All 3 field mappings validated successfully."
+        },
+        {
+          "scenario": "failure",
+          "label": "API Failure Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Error detected and surfaced gracefully",
+          "outcome_matched": true,
+          "response_code": 500,
+          "response_time_ms": 176,
+          "mock_response": {
+            "error": true,
+            "error_code": "KARZA_500",
+            "message": "Internal server error",
+            "response_code": 500
+          },
+          "retry_attempted": false,
+          "retries_used": 0,
+          "details": "Injected 500 error. System correctly detected failure and surfaced error gracefully."
+        },
+        {
+          "scenario": "timeout",
+          "label": "Timeout Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Request aborted at 5000ms, circuit breaker engaged",
+          "outcome_matched": true,
+          "response_code": 408,
+          "response_time_ms": 5000,
+          "mock_response": {
+            "error": true,
+            "error_code": "TIMEOUT",
+            "message": "Request timed out after 5000ms",
+            "response_code": 408
+          },
+          "configured_timeout_ms": 5000,
+          "details": "Injected timeout at 5000ms limit. System correctly aborted request and would engage circuit breaker on repeated failures."
+        },
+        {
+          "scenario": "missing_fields",
+          "label": "Missing Field Validation",
+          "category": "fault_injection",
+          "expected_outcome": "422 validation error with 1 missing field(s) identified",
+          "outcome_matched": true,
+          "response_code": 422,
+          "response_time_ms": 65,
+          "mock_response": {
+            "error": true,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Missing required fields: aadhaar_number",
+            "response_code": 422,
+            "missing_fields": [
+              "aadhaar_number"
+            ]
+          },
+          "missing_fields": [
+            "aadhaar_number"
+          ],
+          "total_required": 3,
+          "details": "Removed 1 required field(s). System correctly rejected request with 422 and identified: aadhaar_number."
+        },
+        {
+          "scenario": "version_comparison",
+          "label": "Version Comparison",
+          "category": "informational",
+          "expected_outcome": "Version availability audit",
+          "outcome_matched": true,
+          "versions": [
+            {
+              "version": "v1",
+              "mock_available": false,
+              "response_time_ms": 360,
+              "status": "no_mock"
+            },
+            {
+              "version": "v2",
+              "mock_available": true,
+              "response_time_ms": 2398,
+              "status": "passed"
+            }
+          ],
+          "selected_version": "v1",
+          "available_versions": [
+            "v1",
+            "v2"
+          ],
+          "details": "2 versions available: v1, v2. Current: v1."
+        }
+      ]
+    },
+    {
+      "integration_id": "cibil",
+      "adapter_id": "cibil",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "notes": "",
+      "scenarios": [
+        {
+          "scenario": "success",
+          "label": "Normal Success",
+          "category": "positive",
+          "expected_outcome": "200 OK with valid response",
+          "outcome_matched": true,
+          "response_code": 200,
+          "response_time_ms": 887,
+          "mock_response": {
+            "_mock": true,
+            "status": "simulated",
+            "response_code": 200
+          },
+          "fields_validated": 4,
+          "details": "API responded in 887ms. All 4 field mappings validated successfully."
+        },
+        {
+          "scenario": "failure",
+          "label": "API Failure Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Error detected and surfaced gracefully",
+          "outcome_matched": true,
+          "response_code": 500,
+          "response_time_ms": 154,
+          "mock_response": {
+            "error": true,
+            "error_code": "CIBIL_500",
+            "message": "Internal server error",
+            "response_code": 500
+          },
+          "retry_attempted": false,
+          "retries_used": 0,
+          "details": "Injected 500 error. System correctly detected failure and surfaced error gracefully."
+        },
+        {
+          "scenario": "timeout",
+          "label": "Timeout Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Request aborted at 5000ms, circuit breaker engaged",
+          "outcome_matched": true,
+          "response_code": 408,
+          "response_time_ms": 5000,
+          "mock_response": {
+            "error": true,
+            "error_code": "TIMEOUT",
+            "message": "Request timed out after 5000ms",
+            "response_code": 408
+          },
+          "configured_timeout_ms": 5000,
+          "details": "Injected timeout at 5000ms limit. System correctly aborted request and would engage circuit breaker on repeated failures."
+        },
+        {
+          "scenario": "missing_fields",
+          "label": "Missing Field Validation",
+          "category": "fault_injection",
+          "expected_outcome": "422 validation error with 1 missing field(s) identified",
+          "outcome_matched": true,
+          "response_code": 422,
+          "response_time_ms": 36,
+          "mock_response": {
+            "error": true,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Missing required fields: pan_number",
+            "response_code": 422,
+            "missing_fields": [
+              "pan_number"
+            ]
+          },
+          "missing_fields": [
+            "pan_number"
+          ],
+          "total_required": 4,
+          "details": "Removed 1 required field(s). System correctly rejected request with 422 and identified: pan_number."
+        },
+        {
+          "scenario": "version_comparison",
+          "label": "Version Comparison",
+          "category": "informational",
+          "expected_outcome": "Version availability audit",
+          "outcome_matched": true,
+          "versions": [
+            {
+              "version": "v1",
+              "mock_available": false,
+              "response_time_ms": 1377,
+              "status": "no_mock"
+            },
+            {
+              "version": "v2",
+              "mock_available": true,
+              "response_time_ms": 1730,
+              "status": "passed"
+            },
+            {
+              "version": "v3",
+              "mock_available": true,
+              "response_time_ms": 1382,
+              "status": "passed"
+            }
+          ],
+          "selected_version": "v1",
+          "available_versions": [
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "details": "3 versions available: v1, v2, v3. Current: v1."
+        }
+      ]
+    },
+    {
+      "integration_id": "perfios",
+      "adapter_id": "perfios",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "notes": "",
+      "scenarios": [
+        {
+          "scenario": "success",
+          "label": "Normal Success",
+          "category": "positive",
+          "expected_outcome": "200 OK with valid response",
+          "outcome_matched": true,
+          "response_code": 200,
+          "response_time_ms": 284,
+          "mock_response": {
+            "avg_monthly_balance": 125000,
+            "min_balance": 15000,
+            "max_balance": 450000,
+            "transaction_count": 142,
+            "total_credits": 1850000,
+            "total_debits": 1720000,
+            "salary_credits_detected": true,
+            "estimated_monthly_salary": 95000,
+            "transaction_categories": [
+              "salary",
+              "rent",
+              "utilities",
+              "food",
+              "shopping",
+              "transfer"
+            ],
+            "emi_payments_detected": [
+              {
+                "lender": "HDFC Bank",
+                "amount": 12500,
+                "frequency": "monthly"
+              },
+              {
+                "lender": "Bajaj Finance",
+                "amount": 8000,
+                "frequency": "monthly"
+              }
+            ],
+            "bounce_count": 0,
+            "account_vintage_months": 48
+          },
+          "fields_validated": 6,
+          "details": "API responded in 284ms. All 6 field mappings validated successfully."
+        },
+        {
+          "scenario": "failure",
+          "label": "API Failure Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Error detected and surfaced gracefully",
+          "outcome_matched": true,
+          "response_code": 500,
+          "response_time_ms": 140,
+          "mock_response": {
+            "error": true,
+            "error_code": "PERFIOS_500",
+            "message": "Internal server error",
+            "response_code": 500
+          },
+          "retry_attempted": false,
+          "retries_used": 0,
+          "details": "Injected 500 error. System correctly detected failure and surfaced error gracefully."
+        },
+        {
+          "scenario": "timeout",
+          "label": "Timeout Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Request aborted at 5000ms, circuit breaker engaged",
+          "outcome_matched": true,
+          "response_code": 408,
+          "response_time_ms": 5000,
+          "mock_response": {
+            "error": true,
+            "error_code": "TIMEOUT",
+            "message": "Request timed out after 5000ms",
+            "response_code": 408
+          },
+          "configured_timeout_ms": 5000,
+          "details": "Injected timeout at 5000ms limit. System correctly aborted request and would engage circuit breaker on repeated failures."
+        },
+        {
+          "scenario": "missing_fields",
+          "label": "Missing Field Validation",
+          "category": "fault_injection",
+          "expected_outcome": "422 validation error with 1 missing field(s) identified",
+          "outcome_matched": true,
+          "response_code": 422,
+          "response_time_ms": 95,
+          "mock_response": {
+            "error": true,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Missing required fields: account_number",
+            "response_code": 422,
+            "missing_fields": [
+              "account_number"
+            ]
+          },
+          "missing_fields": [
+            "account_number"
+          ],
+          "total_required": 6,
+          "details": "Removed 1 required field(s). System correctly rejected request with 422 and identified: account_number."
+        },
+        {
+          "scenario": "version_comparison",
+          "label": "Version Comparison",
+          "category": "informational",
+          "expected_outcome": "Version availability audit",
+          "outcome_matched": true,
+          "versions": [
+            {
+              "version": "v1",
+              "mock_available": true,
+              "response_time_ms": 84,
+              "status": "passed"
+            },
+            {
+              "version": "v2",
+              "mock_available": false,
+              "response_time_ms": 2247,
+              "status": "no_mock"
+            }
+          ],
+          "selected_version": "v1",
+          "available_versions": [
+            "v1",
+            "v2"
+          ],
+          "details": "2 versions available: v1, v2. Current: v1."
+        }
+      ]
+    },
+    {
+      "integration_id": "riskguard",
+      "adapter_id": "riskguard",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "notes": "",
+      "scenarios": [
+        {
+          "scenario": "success",
+          "label": "Normal Success",
+          "category": "positive",
+          "expected_outcome": "200 OK with valid response",
+          "outcome_matched": true,
+          "response_code": 200,
+          "response_time_ms": 1500,
+          "mock_response": {
+            "_mock": true,
+            "status": "simulated",
+            "response_code": 200
+          },
+          "fields_validated": 6,
+          "details": "API responded in 1500ms. All 6 field mappings validated successfully."
+        },
+        {
+          "scenario": "failure",
+          "label": "API Failure Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Error detected and surfaced gracefully",
+          "outcome_matched": true,
+          "response_code": 500,
+          "response_time_ms": 139,
+          "mock_response": {
+            "error": true,
+            "error_code": "RISKGUARD_500",
+            "message": "Internal server error",
+            "response_code": 500
+          },
+          "retry_attempted": false,
+          "retries_used": 0,
+          "details": "Injected 500 error. System correctly detected failure and surfaced error gracefully."
+        },
+        {
+          "scenario": "timeout",
+          "label": "Timeout Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Request aborted at 5000ms, circuit breaker engaged",
+          "outcome_matched": true,
+          "response_code": 408,
+          "response_time_ms": 5000,
+          "mock_response": {
+            "error": true,
+            "error_code": "TIMEOUT",
+            "message": "Request timed out after 5000ms",
+            "response_code": 408
+          },
+          "configured_timeout_ms": 5000,
+          "details": "Injected timeout at 5000ms limit. System correctly aborted request and would engage circuit breaker on repeated failures."
+        },
+        {
+          "scenario": "missing_fields",
+          "label": "Missing Field Validation",
+          "category": "fault_injection",
+          "expected_outcome": "422 validation error with 1 missing field(s) identified",
+          "outcome_matched": true,
+          "response_code": 422,
+          "response_time_ms": 50,
+          "mock_response": {
+            "error": true,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Missing required fields: applicant_id",
+            "response_code": 422,
+            "missing_fields": [
+              "applicant_id"
+            ]
+          },
+          "missing_fields": [
+            "applicant_id"
+          ],
+          "total_required": 6,
+          "details": "Removed 1 required field(s). System correctly rejected request with 422 and identified: applicant_id."
+        },
+        {
+          "scenario": "version_comparison",
+          "label": "Version Comparison",
+          "category": "informational",
+          "expected_outcome": "Version availability audit",
+          "outcome_matched": true,
+          "versions": [
+            {
+              "version": "v1",
+              "mock_available": false,
+              "response_time_ms": 1647,
+              "status": "no_mock"
+            },
+            {
+              "version": "v2",
+              "mock_available": true,
+              "response_time_ms": 375,
+              "status": "passed"
+            },
+            {
+              "version": "v3",
+              "mock_available": false,
+              "response_time_ms": 542,
+              "status": "no_mock"
+            }
+          ],
+          "selected_version": "v1",
+          "available_versions": [
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "details": "3 versions available: v1, v2, v3. Current: v1."
+        }
+      ]
+    },
+    {
+      "integration_id": "twilio",
+      "adapter_id": "twilio",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "notes": "",
+      "scenarios": [
+        {
+          "scenario": "success",
+          "label": "Normal Success",
+          "category": "positive",
+          "expected_outcome": "200 OK with valid response",
+          "outcome_matched": true,
+          "response_code": 200,
+          "response_time_ms": 839,
+          "mock_response": {
+            "message_sid": "SM1234567890abcdef1234567890abcdef",
+            "account_sid": "Mock_Twilio_Account_SID_12345678",
+            "to": "+919876543210",
+            "from": "+14155552671",
+            "body": "Your loan application #LA1234 has been approved. Amount: INR 5,00,000.",
+            "status": "delivered",
+            "direction": "outbound-api",
+            "price": "-0.0075",
+            "price_unit": "USD",
+            "date_sent": "2026-03-15T10:30:00Z",
+            "error_code": null,
+            "error_message": null
+          },
+          "fields_validated": 4,
+          "details": "API responded in 839ms. All 4 field mappings validated successfully."
+        },
+        {
+          "scenario": "failure",
+          "label": "API Failure Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Error detected and surfaced gracefully",
+          "outcome_matched": true,
+          "response_code": 500,
+          "response_time_ms": 113,
+          "mock_response": {
+            "error": true,
+            "error_code": "TWILIO_500",
+            "message": "Internal server error",
+            "response_code": 500
+          },
+          "retry_attempted": false,
+          "retries_used": 0,
+          "details": "Injected 500 error. System correctly detected failure and surfaced error gracefully."
+        },
+        {
+          "scenario": "timeout",
+          "label": "Timeout Handling",
+          "category": "fault_injection",
+          "expected_outcome": "Request aborted at 5000ms, circuit breaker engaged",
+          "outcome_matched": true,
+          "response_code": 408,
+          "response_time_ms": 5000,
+          "mock_response": {
+            "error": true,
+            "error_code": "TIMEOUT",
+            "message": "Request timed out after 5000ms",
+            "response_code": 408
+          },
+          "configured_timeout_ms": 5000,
+          "details": "Injected timeout at 5000ms limit. System correctly aborted request and would engage circuit breaker on repeated failures."
+        },
+        {
+          "scenario": "missing_fields",
+          "label": "Missing Field Validation",
+          "category": "fault_injection",
+          "expected_outcome": "422 validation error with 1 missing field(s) identified",
+          "outcome_matched": true,
+          "response_code": 422,
+          "response_time_ms": 78,
+          "mock_response": {
+            "error": true,
+            "error_code": "VALIDATION_ERROR",
+            "message": "Missing required fields: to",
+            "response_code": 422,
+            "missing_fields": [
+              "to"
+            ]
+          },
+          "missing_fields": [
+            "to"
+          ],
+          "total_required": 4,
+          "details": "Removed 1 required field(s). System correctly rejected request with 422 and identified: to."
+        },
+        {
+          "scenario": "version_comparison",
+          "label": "Version Comparison",
+          "category": "informational",
+          "expected_outcome": "Version availability audit",
+          "outcome_matched": true,
+          "versions": [
+            {
+              "version": "v1",
+              "mock_available": true,
+              "response_time_ms": 995,
+              "status": "passed"
+            },
+            {
+              "version": "v2",
+              "mock_available": true,
+              "response_time_ms": 2366,
+              "status": "passed"
+            },
+            {
+              "version": "v3",
+              "mock_available": true,
+              "response_time_ms": 1861,
+              "status": "passed"
+            }
+          ],
+          "selected_version": "v1",
+          "available_versions": [
+            "v1",
+            "v2",
+            "v3"
+          ],
+          "details": "3 versions available: v1, v2, v3. Current: v1."
+        }
+      ]
+    }
+  ],
+  "fidelity_score": 100.0,
+  "timestamp": "2026-04-20T09:49:30.025998+00:00"
+}

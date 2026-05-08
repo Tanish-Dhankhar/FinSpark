@@ -67,7 +67,7 @@ def emit_audit_event(
     log["entries"].append(entry)
     audit_file.write_text(json.dumps(log, indent=2), encoding="utf-8")
 
-    print(f"  📋 Audit [{stage}] {action}")
+    print(f"  [Log] Audit [{stage}] {action}")
     return entry
 
 

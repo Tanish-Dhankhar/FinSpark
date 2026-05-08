@@ -1,0 +1,71 @@
+{
+  "report_id": "sim_85fd903a",
+  "generated_at": "2026-04-20T13:11:01.287684+00:00",
+  "overall_confidence_score": 75,
+  "overall_passed": false,
+  "total_integrations_tested": 4,
+  "passed_count": 3,
+  "failed_count": 1,
+  "human_readable_summary": "The simulation successfully validated three out of four integrations. Karza, CIBIL, and Twilio integrations are fully operational and mapped correctly. The Penny Drop integration failed due to a missing mandatory field 'transfer_amount' which prevents successful API execution.",
+  "recommended_actions": [
+    "Define the source for 'transfer_amount' in the Penny Drop integration mapping.",
+    "Verify if 'transfer_amount' should be a hardcoded default or a dynamic field from the loan application form.",
+    "Proceed to UAT for Karza, CIBIL, and Twilio integrations."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped correctly."
+    },
+    {
+      "integration_id": "int_pennydrop_001",
+      "adapter_id": "pennydrop",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "transfer_amount"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Integration failed due to missing mandatory field 'transfer_amount'."
+    }
+  ]
+}

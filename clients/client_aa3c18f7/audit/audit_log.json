@@ -179,6 +179,186 @@
       "input_hash": null,
       "output_hash": null,
       "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:03.043937+00:00",
+      "stage": "document_update",
+      "action": "Updated documents uploaded: NovaCred_BRD.pdf, NovaCred_SOW.docx",
+      "agent": "user",
+      "responsible": "user",
+      "input_hash": "sha256:431bf2527d62b646",
+      "output_hash": null,
+      "details": "2 document(s) uploaded for pipeline re-run. New config version: v2"
+    },
+    {
+      "timestamp": "2026-04-08T01:17:03.052484+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline execution started (stages 1-5)",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:04.245549+00:00",
+      "stage": "stage_1_ingestion",
+      "action": "Extracted text from 2 documents (37135 chars total)",
+      "agent": "stage1_ingestion",
+      "responsible": "system",
+      "input_hash": "sha256:601043a6a74d42c4",
+      "output_hash": "sha256:4253e07090486181",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:10.077543+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Extracted requirements: 5 services detected",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:39ec6b76dfe2888a",
+      "output_hash": "sha256:b3d01a5cf4b461d9",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:22.013078+00:00",
+      "stage": "stage_2_parsing",
+      "action": "Config template filled with 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:b3d01a5cf4b461d9",
+      "output_hash": "sha256:116873a155442ed7",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:24.715590+00:00",
+      "stage": "stage_3_matching",
+      "action": "Adapter matching: 5 adapters matched",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:b3d01a5cf4b461d9",
+      "output_hash": "sha256:1e6b99866be8da1c",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:17:40.709712+00:00",
+      "stage": "stage_3_matching",
+      "action": "Config enriched with adapter endpoints, auth, and retry policies",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:18:19.527731+00:00",
+      "stage": "stage_3_matching",
+      "action": "Hooks assigned: 8 unique hooks across 5 integrations",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:18:31.072026+00:00",
+      "stage": "stage_3_matching",
+      "action": "Field mapping complete: 23 mappings, 5 transformation rules",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:18:37.361863+00:00",
+      "stage": "stage_4_reasoning",
+      "action": "Reasoning report generated: 5 integrations analyzed, 0 missing fields flagged, 0 unmatched services",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:186805ab44a9af08",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:19:09.401535+00:00",
+      "stage": "stage_5_cleaner",
+      "action": "Config cleaned for production (size delta: +1422 chars)",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": "sha256:68ecaacabc03d22a",
+      "output_hash": "sha256:68ecaacabc03d22a",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:19:09.444008+00:00",
+      "stage": "stage_6_review",
+      "action": "Pipeline paused for human review",
+      "agent": "stage6_review",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:19:09.465552+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline paused at Stage 6 for human review",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:20:38.179493+00:00",
+      "stage": "stage_6_review",
+      "action": "Config v2 approved",
+      "agent": "stage6_review",
+      "responsible": "human_reviewer",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:20:38.186581+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline resumed for Stage 7 simulation",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:20:43.756562+00:00",
+      "stage": "stage_7_simulation",
+      "action": "Simulation complete: 100% confidence, 5 passed, 0 failed",
+      "agent": "gemini_flash_lite",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": "sha256:9aa72aa02e8af20c",
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-08T01:20:43.761826+00:00",
+      "stage": "pipeline",
+      "action": "Pipeline COMPLETED \u2014 confidence score: 100%",
+      "agent": "orchestrator",
+      "responsible": "system",
+      "input_hash": null,
+      "output_hash": null,
+      "details": null
+    },
+    {
+      "timestamp": "2026-04-20T09:49:30.023477+00:00",
+      "stage": "stage_7_simulation",
+      "action": "detailed_simulation_executed",
+      "agent": "simulation_engine",
+      "responsible": "user",
+      "input_hash": "sha256:cdfe7cbb291df152",
+      "output_hash": "sha256:fc7b8ab334fabb5b",
+      "details": "Fidelity 100.0% | 25 scenarios | Positive 5/5 | Faults handled 15/15 | karza(1/1P 3/3F), cibil(1/1P 3/3F), perfios(1/1P 3/3F), riskguard(1/1P 3/3F), twilio(1/1P 3/3F)"
     }
   ]
 }

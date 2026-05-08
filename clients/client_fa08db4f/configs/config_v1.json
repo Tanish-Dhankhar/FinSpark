@@ -1,0 +1,292 @@
+{
+  "integrations": [
+    {
+      "integration_id": "int_karza_001",
+      "field_mapping": [
+        {
+          "user_field": "Aadhaar number",
+          "api_field": "aadhaar_number",
+          "mapping_type": "direct",
+          "description": "Maps user Aadhaar to API Aadhaar"
+        },
+        {
+          "user_field": "PAN number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to API PAN"
+        },
+        {
+          "user_field": "Consent to eKYC",
+          "api_field": "consent",
+          "mapping_type": "direct",
+          "description": "Maps user consent flag to API boolean"
+        },
+        {
+          "user_field": "Date of birth",
+          "api_field": "dob",
+          "mapping_type": "direct",
+          "description": "Maps user DOB to API DOB"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps user name to API full_name"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "mobile_number",
+          "mapping_type": "direct",
+          "description": "Maps user mobile to API mobile"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Aadhaar number",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII",
+          "example": "encrypt(aadhaar_number) -> aadhaar_number_encrypted"
+        },
+        {
+          "source_field": "PAN number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII",
+          "example": "encrypt(pan_number) -> pan_number_encrypted"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "field_mapping": [
+        {
+          "user_field": "PAN number",
+          "api_field": "pan_number",
+          "mapping_type": "direct",
+          "description": "Maps user PAN to API PAN"
+        },
+        {
+          "user_field": "Full Legal Name",
+          "api_field": "full_name",
+          "mapping_type": "direct",
+          "description": "Maps user name to API full_name"
+        },
+        {
+          "user_field": "Date of birth",
+          "api_field": "date_of_birth",
+          "mapping_type": "direct",
+          "description": "Maps user DOB to API date_of_birth"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "mobile_number",
+          "mapping_type": "direct",
+          "description": "Maps user mobile to API mobile"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Date of birth",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD/MM/YYYY to ISO 8601",
+          "example": "12/05/1990 -> 1990-05-12"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "field_mapping": [
+        {
+          "user_field": "Estimated procedure cost",
+          "api_field": "order_amount",
+          "mapping_type": "computed",
+          "description": "Convert INR to paise"
+        },
+        {
+          "user_field": "",
+          "api_field": "currency",
+          "mapping_type": "missing",
+          "description": "Missing currency field"
+        },
+        {
+          "user_field": "Mobile Number",
+          "api_field": "customer_id",
+          "mapping_type": "direct",
+          "description": "Use mobile as customer identifier"
+        },
+        {
+          "user_field": "",
+          "api_field": "order_id",
+          "mapping_type": "missing",
+          "description": "Missing internal order ID"
+        },
+        {
+          "user_field": "",
+          "api_field": "payment_method",
+          "mapping_type": "missing",
+          "description": "Missing payment method"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Estimated procedure cost",
+          "target_field": "order_amount",
+          "rule_type": "compute",
+          "rule": "Multiply by 100 to convert INR to paise",
+          "example": "1000 -> 100000"
+        }
+      ]
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "field_mapping": [
+        {
+          "user_field": "Mobile Number",
+          "api_field": "to",
+          "mapping_type": "direct",
+          "description": "Maps user mobile to destination"
+        },
+        {
+          "user_field": "",
+          "api_field": "from",
+          "mapping_type": "missing",
+          "description": "Missing sender ID"
+        },
+        {
+          "user_field": "",
+          "api_field": "body",
+          "mapping_type": "missing",
+          "description": "Missing message body"
+        },
+        {
+          "user_field": "",
+          "api_field": "account_sid",
+          "mapping_type": "missing",
+          "description": "Missing account SID"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "Mobile Number",
+          "target_field": "to",
+          "rule_type": "format",
+          "rule": "Prepend +91 for E.164 compliance",
+          "example": "9876543210 -> +919876543210"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "config_id": "config_3b8403bf3e4e",
+    "config_version": "v1",
+    "created_at": "2026-04-07T00:44:36.148817+00:00",
+    "last_updated_at": "2026-04-07T00:47:18.007608+00:00",
+    "status": "production-ready",
+    "client": {
+      "client_id": "client_fa08db4f",
+      "client_name": "carefirst",
+      "industry_vertical": "Healthcare Finance / NBFC",
+      "region": "India",
+      "environment": "production"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "CareFirst_BRD.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_05a72dcd",
+      "triggered_by": "project_creation",
+      "triggered_at": "2026-04-07T00:44:36.148817+00:00",
+      "completed_at": "2026-04-07T00:47:09.414887+00:00",
+      "overall_status": "completed",
+      "human_review_status": "approved",
+      "human_reviewer": "human_reviewer",
+      "review_notes": null,
+      "correction_iterations": 0,
+      "max_correction_iterations": 3
+    }
+  },
+  "simulation_report": {
+    "report_id": "sim_c6e7820f",
+    "generated_at": "2026-04-07T00:47:09.414887+00:00",
+    "overall_confidence_score": 45,
+    "overall_passed": false,
+    "total_integrations_tested": 4,
+    "passed_count": 1,
+    "failed_count": 3,
+    "human_readable_summary": "The simulation failed to execute properly across all integrations due to missing mock adapter configurations. While Karza integration appears structurally sound, Razorpay and Twilio integrations have significant gaps in mandatory field mappings, and all integrations lack actual API response validation.",
+    "recommended_actions": [
+      "Provision mock adapter files for all integration IDs to enable actual response validation.",
+      "Define missing mandatory fields for Razorpay (currency, order_id, payment_method).",
+      "Define missing mandatory fields for Twilio (from, body, account_sid).",
+      "Verify adapter_id mapping in the configuration to resolve 'unknown' adapter status."
+    ],
+    "integration_results": [
+      {
+        "integration_id": "int_karza_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 6,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Mapping is complete, but simulation failed due to missing mock adapter."
+      },
+      {
+        "integration_id": "int_cibil_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 4,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Mapping is complete, but simulation failed due to missing mock adapter."
+      },
+      {
+        "integration_id": "int_razorpay_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": -20,
+        "fields_mapped_correctly": 2,
+        "total_required_fields": 5,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "currency",
+          "order_id",
+          "payment_method"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Three mandatory fields are missing from the mapping configuration."
+      },
+      {
+        "integration_id": "int_twilio_001",
+        "adapter_id": "unknown",
+        "version_tested": "v1",
+        "status": "failed",
+        "confidence_score": -25,
+        "fields_mapped_correctly": 1,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [
+          "from",
+          "body",
+          "account_sid"
+        ],
+        "transformation_rule_failures": [],
+        "notes": "Three mandatory fields are missing from the mapping configuration."
+      }
+    ],
+    "report_file_path": "C:\\Users\\happy\\Desktop\\college\\hackathons\\submission-1comeRnd\\FinSpark_final\\clients\\client_fa08db4f\\simulation_reports\\simulation_report_20260407_061718.json"
+  }
+}

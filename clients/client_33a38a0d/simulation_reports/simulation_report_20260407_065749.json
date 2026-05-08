@@ -1,0 +1,84 @@
+{
+  "report_id": "sim_31dda7ae",
+  "generated_at": "2026-04-07T01:27:41.378503+00:00",
+  "overall_confidence_score": 80,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 4,
+  "failed_count": 1,
+  "human_readable_summary": "The integration simulation completed with 4 out of 5 integrations passing successfully. The Aarogya Health API integration failed due to a missing mock response and a critical missing mandatory field in the mapping configuration. All other integrations (Karza, CIBIL, Razorpay, and Twilio) demonstrated successful mapping and mock response validation.",
+  "recommended_actions": [
+    "Define and upload a mock response file for the Aarogya Health API integration.",
+    "Resolve the missing 'consent_token' field mapping for the Aarogya Health API integration.",
+    "Verify the transformation rule logic for the Aarogya Health API to ensure encryption requirements are met."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_cibil_002",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_razorpay_003",
+      "adapter_id": "razorpay",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformation rules verified."
+    },
+    {
+      "integration_id": "int_aarogya_004",
+      "adapter_id": "Aarogya_Health_API",
+      "version_tested": "v1.2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 7,
+      "total_required_fields": 8,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "consent_token"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "Missing mock response file and mandatory field 'consent_token' is null."
+    },
+    {
+      "integration_id": "int_twilio_005",
+      "adapter_id": "twilio",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped correctly."
+    }
+  ]
+}

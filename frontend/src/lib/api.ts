@@ -1,9 +1,9 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export async function api(path: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { "Content-Type": "application/json", "Bypass-Tunnel-Reminder": "*", ...options?.headers },
   });
   if (!res.ok) {
     const err = await res.text();
@@ -15,7 +15,7 @@ export async function api(path: string, options?: RequestInit) {
 export async function apiUpload(path: string, files: File[]) {
   const formData = new FormData();
   files.forEach((f) => formData.append("files", f));
-  const res = await fetch(`${API_BASE}${path}`, { method: "POST", body: formData });
+  const res = await fetch(`${API_BASE}${path}`, { method: "POST", body: formData, headers: { "Bypass-Tunnel-Reminder": "*" } });
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
 }
@@ -47,7 +47,7 @@ export const runDetailedSimulation = (id: string) =>
 export async function rerunPipeline(id: string, files: File[]) {
   const formData = new FormData();
   files.forEach((f) => formData.append("files", f));
-  const res = await fetch(`${API_BASE}/api/projects/${id}/rerun-pipeline`, { method: "POST", body: formData });
+  const res = await fetch(`${API_BASE}/api/projects/${id}/rerun-pipeline`, { method: "POST", body: formData, headers: { "Bypass-Tunnel-Reminder": "*" } });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Rerun failed: ${res.status} — ${err}`);
@@ -90,7 +90,7 @@ export const getHook = (id: string) => api(`/api/catalogs/hooks/${id}`);
 export async function uploadAdapter(file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_BASE}/api/catalogs/adapters/upload`, { method: "POST", body: formData });
+  const res = await fetch(`${API_BASE}/api/catalogs/adapters/upload`, { method: "POST", body: formData, headers: { "Bypass-Tunnel-Reminder": "*" } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `Upload failed: ${res.status}`);
@@ -101,7 +101,7 @@ export async function uploadAdapter(file: File) {
 export async function uploadHook(file: File) {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_BASE}/api/catalogs/hooks/upload`, { method: "POST", body: formData });
+  const res = await fetch(`${API_BASE}/api/catalogs/hooks/upload`, { method: "POST", body: formData, headers: { "Bypass-Tunnel-Reminder": "*" } });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `Upload failed: ${res.status}`);

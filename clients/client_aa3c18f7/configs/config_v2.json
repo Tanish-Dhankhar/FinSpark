@@ -1,0 +1,688 @@
+{
+  "integrations": [
+    {
+      "integration_id": "int_karza",
+      "service_name": "Karza KYC Provider",
+      "adapter_id": "karza",
+      "field_mapping": [
+        {
+          "user_field": "aadhaar_uid",
+          "api_field": "aadhaar_number",
+          "mapping_type": "rename",
+          "description": "Maps user Aadhaar UID to Karza Aadhaar number field"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to Karza PAN number field"
+        },
+        {
+          "user_field": "kyc_consent_flag",
+          "api_field": "consent",
+          "mapping_type": "rename",
+          "description": "Maps user consent flag to Karza consent boolean"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "aadhaar_uid",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field before transmission",
+          "example": "encrypt(aadhaar_uid) -> aadhaar_number"
+        },
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field before transmission",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 5,
+          "is_blocking": true,
+          "trigger_condition": "Before payload leaves instance if adapter needs encryption",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "post_schema_validation_hook",
+          "hook_name": "post_schema_validation_hook",
+          "hook_type": "validation",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "After post_transform_hook",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "service_name": "TransUnion CIBIL Bureau",
+      "adapter_id": "cibil",
+      "field_mapping": [
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to CIBIL PAN number"
+        },
+        {
+          "user_field": "applicant_full_name",
+          "api_field": "full_name",
+          "mapping_type": "rename",
+          "description": "Maps user full name to CIBIL full name"
+        },
+        {
+          "user_field": "dob_dd_mm_yyyy",
+          "api_field": "date_of_birth",
+          "mapping_type": "format",
+          "description": "Maps user DOB to CIBIL ISO 8601 date"
+        },
+        {
+          "user_field": "applicant_phone",
+          "api_field": "mobile_number",
+          "mapping_type": "rename",
+          "description": "Maps user phone to CIBIL mobile number"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "dob_dd_mm_yyyy",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD-MM-YYYY to YYYY-MM-DD",
+          "example": "format(12-05-1990) -> 1990-05-12"
+        },
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 5,
+          "is_blocking": true,
+          "trigger_condition": "Before payload leaves instance if adapter needs encryption",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "post_schema_validation_hook",
+          "hook_name": "post_schema_validation_hook",
+          "hook_type": "validation",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "After post_transform_hook",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_perfios_001",
+      "service_name": "Perfios Account Aggregator",
+      "adapter_id": "perfios",
+      "field_mapping": [
+        {
+          "user_field": "savings_account_num",
+          "api_field": "account_number",
+          "mapping_type": "rename",
+          "description": "Maps user account number to Perfios account number"
+        },
+        {
+          "user_field": "bank_branch_ifsc",
+          "api_field": "ifsc_code",
+          "mapping_type": "rename",
+          "description": "Maps user IFSC to Perfios IFSC"
+        },
+        {
+          "user_field": "customer_id",
+          "api_field": "customer_id",
+          "mapping_type": "direct",
+          "description": "Maps user customer ID to Perfios customer ID"
+        },
+        {
+          "user_field": "date_range_from",
+          "api_field": "date_range_from",
+          "mapping_type": "direct",
+          "description": "Maps user start date to Perfios start date"
+        },
+        {
+          "user_field": "date_range_to",
+          "api_field": "date_range_to",
+          "mapping_type": "direct",
+          "description": "Maps user end date to Perfios end date"
+        },
+        {
+          "user_field": "consent_artifact",
+          "api_field": "consent_artifact",
+          "mapping_type": "direct",
+          "description": "Maps user consent artifact to Perfios consent"
+        }
+      ],
+      "transformation_rules": [],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_riskguard_001",
+      "service_name": "RiskGuard Analytics Engine",
+      "adapter_id": "riskguard",
+      "field_mapping": [
+        {
+          "user_field": "applicant_id",
+          "api_field": "applicant_id",
+          "mapping_type": "direct",
+          "description": "Maps user applicant ID to RiskGuard applicant ID"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps user PAN ID to RiskGuard PAN number"
+        },
+        {
+          "user_field": "applicant_phone",
+          "api_field": "mobile_number",
+          "mapping_type": "rename",
+          "description": "Maps user phone to RiskGuard mobile number"
+        },
+        {
+          "user_field": "request_ip_address",
+          "api_field": "ip_address",
+          "mapping_type": "rename",
+          "description": "Maps user IP to RiskGuard IP"
+        },
+        {
+          "user_field": "session_device_hash",
+          "api_field": "device_fingerprint",
+          "mapping_type": "rename",
+          "description": "Maps user device hash to RiskGuard fingerprint"
+        },
+        {
+          "user_field": "loan_ask_amount",
+          "api_field": "loan_amount_requested",
+          "mapping_type": "rename",
+          "description": "Maps user loan amount to RiskGuard requested amount"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption to PII field",
+          "example": "encrypt(pan_id) -> pan_number"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "service_name": "Twilio SMS",
+      "adapter_id": "twilio",
+      "field_mapping": [
+        {
+          "user_field": "to",
+          "api_field": "to",
+          "mapping_type": "direct",
+          "description": "Maps user destination to Twilio to"
+        },
+        {
+          "user_field": "from",
+          "api_field": "from",
+          "mapping_type": "direct",
+          "description": "Maps user sender to Twilio from"
+        },
+        {
+          "user_field": "body",
+          "api_field": "body",
+          "mapping_type": "direct",
+          "description": "Maps user message body to Twilio body"
+        },
+        {
+          "user_field": "account_sid",
+          "api_field": "account_sid",
+          "mapping_type": "direct",
+          "description": "Maps user account SID to Twilio account SID"
+        }
+      ],
+      "transformation_rules": [],
+      "hooks": [
+        {
+          "hook_id": "credential_resolve_hook",
+          "hook_name": "credential_resolve_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Before any other pre-call hooks run",
+          "timeout_ms": 500
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "lifecycle_state": "registered",
+          "execution_order": 7,
+          "is_blocking": true,
+          "trigger_condition": "Before outbound adapter API call",
+          "timeout_ms": 1000
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "On adapter call failure returning 429, 5xx, or network timeout",
+          "timeout_ms": 15000
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "lifecycle_state": "registered",
+          "execution_order": 2,
+          "is_blocking": false,
+          "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
+          "timeout_ms": 3000
+        },
+        {
+          "hook_id": "post_transform_hook",
+          "hook_name": "post_transform_hook",
+          "hook_type": "post-call",
+          "lifecycle_state": "registered",
+          "execution_order": 1,
+          "is_blocking": true,
+          "trigger_condition": "Immediately after successful adapter API response received",
+          "timeout_ms": 2000
+        },
+        {
+          "hook_id": "audit_emit_hook",
+          "hook_name": "audit_emit_hook",
+          "hook_type": "audit",
+          "lifecycle_state": "registered",
+          "execution_order": 3,
+          "is_blocking": false,
+          "trigger_condition": "After every pipeline action",
+          "timeout_ms": 1000
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "config_id": "config_699499e8118b",
+    "config_version": "v2",
+    "created_at": "2026-04-05T17:31:18.582086+00:00",
+    "last_updated_at": "2026-04-08T01:20:43.748552+00:00",
+    "status": "production-ready",
+    "client": {
+      "client_id": "client_aa3c18f7",
+      "client_name": "NovaCred",
+      "industry_vertical": "NBFC / Digital Lending",
+      "region": "India",
+      "environment": "production"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "NovaCred_BRD.pdf",
+        "type": "PDF"
+      },
+      {
+        "filename": "NovaCred_SOW.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_d356b0b8",
+      "triggered_by": "document_update_rerun",
+      "triggered_at": "2026-04-08T01:17:03.042018+00:00",
+      "overall_status": "completed",
+      "human_review_status": "approved",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3,
+      "human_reviewer": "human_reviewer",
+      "completed_at": "2026-04-08T01:20:38.223948+00:00"
+    }
+  },
+  "simulation_report": {
+    "report_id": "sim_8956a564",
+    "generated_at": "2026-04-08T01:20:38.223948+00:00",
+    "overall_confidence_score": 100,
+    "overall_passed": true,
+    "total_integrations_tested": 5,
+    "passed_count": 5,
+    "failed_count": 0,
+    "human_readable_summary": "The integration simulation for NovaCred was successful across all five providers (Karza, CIBIL, Perfios, RiskGuard, and Twilio). All field mappings, transformation rules, and hook configurations were validated against the mock responses. No critical failures or missing mandatory fields were detected, indicating the configuration is ready for production deployment.",
+    "recommended_actions": [
+      "Proceed with deployment to production environment.",
+      "Monitor initial production logs for any unexpected transformation errors.",
+      "Verify that the encryption keys for PII fields are correctly rotated in the production environment."
+    ],
+    "integration_results": [
+      {
+        "integration_id": "int_karza",
+        "adapter_id": "karza",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 3,
+        "total_required_fields": 3,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "All mappings and encryption rules validated successfully."
+      },
+      {
+        "integration_id": "int_cibil_001",
+        "adapter_id": "cibil",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 4,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Date formatting and encryption rules applied correctly."
+      },
+      {
+        "integration_id": "int_perfios_001",
+        "adapter_id": "perfios",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 6,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Direct mappings verified; no transformation rules required."
+      },
+      {
+        "integration_id": "int_riskguard_001",
+        "adapter_id": "riskguard",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 6,
+        "total_required_fields": 6,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Encryption rule for PAN field validated."
+      },
+      {
+        "integration_id": "int_twilio_001",
+        "adapter_id": "twilio",
+        "version_tested": "v1",
+        "status": "passed",
+        "confidence_score": 100,
+        "fields_mapped_correctly": 4,
+        "total_required_fields": 4,
+        "type_mismatches": [],
+        "missing_mandatory_fields": [],
+        "transformation_rule_failures": [],
+        "notes": "Direct mappings verified; no transformation rules required."
+      }
+    ],
+    "report_file_path": "C:\\Users\\happy\\Desktop\\college\\hackathons\\Finspark\\submission-1comeRnd\\FinSpark_final\\clients\\client_aa3c18f7\\simulation_reports\\simulation_report_20260408_065043.json"
+  }
+}

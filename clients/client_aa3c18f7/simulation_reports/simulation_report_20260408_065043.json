@@ -1,0 +1,82 @@
+{
+  "report_id": "sim_8956a564",
+  "generated_at": "2026-04-08T01:20:38.223948+00:00",
+  "overall_confidence_score": 100,
+  "overall_passed": true,
+  "total_integrations_tested": 5,
+  "passed_count": 5,
+  "failed_count": 0,
+  "human_readable_summary": "The integration simulation for NovaCred was successful across all five providers (Karza, CIBIL, Perfios, RiskGuard, and Twilio). All field mappings, transformation rules, and hook configurations were validated against the mock responses. No critical failures or missing mandatory fields were detected, indicating the configuration is ready for production deployment.",
+  "recommended_actions": [
+    "Proceed with deployment to production environment.",
+    "Monitor initial production logs for any unexpected transformation errors.",
+    "Verify that the encryption keys for PII fields are correctly rotated in the production environment."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza",
+      "adapter_id": "karza",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All mappings and encryption rules validated successfully."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Date formatting and encryption rules applied correctly."
+    },
+    {
+      "integration_id": "int_perfios_001",
+      "adapter_id": "perfios",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Direct mappings verified; no transformation rules required."
+    },
+    {
+      "integration_id": "int_riskguard_001",
+      "adapter_id": "riskguard",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Encryption rule for PAN field validated."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v1",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Direct mappings verified; no transformation rules required."
+    }
+  ]
+}

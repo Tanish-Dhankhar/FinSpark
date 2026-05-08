@@ -1,0 +1,56 @@
+{
+  "report_id": "sim_43355e5e",
+  "generated_at": "2026-04-08T01:08:46.473629+00:00",
+  "overall_confidence_score": 100,
+  "overall_passed": true,
+  "total_integrations_tested": 3,
+  "passed_count": 3,
+  "failed_count": 0,
+  "human_readable_summary": "The integration simulation for NexGen was successful across all three services (Karza, CIBIL, and Twilio). All mandatory field mappings were verified against the mock responses, and transformation rules (encryption and formatting) were confirmed to be correctly configured. No critical failures or schema mismatches were detected during the simulation run.",
+  "recommended_actions": [
+    "Proceed to UAT environment deployment.",
+    "Verify that the production environment has the necessary environment variables ($KARZA_API_KEY, $CIBIL_OAUTH_CLIENT_ID, $CIBIL_OAUTH_CLIENT_SECRET, $TWILIO_ACCOUNT_SID, $TWILIO_AUTH_TOKEN) populated.",
+    "Monitor the audit_emit_hook logs during the initial production rollout to ensure audit trails are captured correctly."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 3,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and encryption rules verified."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Computed field mapping for consent_timestamp verified."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "E.164 formatting rule for mobile number confirmed."
+    }
+  ]
+}

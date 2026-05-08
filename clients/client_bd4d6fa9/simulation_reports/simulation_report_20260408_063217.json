@@ -1,0 +1,118 @@
+{
+  "report_id": "sim_87b1e8c7",
+  "generated_at": "2026-04-08T01:02:08.234543+00:00",
+  "overall_confidence_score": 50,
+  "overall_passed": false,
+  "total_integrations_tested": 5,
+  "passed_count": 0,
+  "failed_count": 5,
+  "human_readable_summary": "The simulation for all five integrations failed due to the absence of mock response files for the specified adapter versions. While the field mappings and transformation rules are structurally defined in the configuration, the lack of actual mock data prevented validation of the API interaction logic. All integrations are currently in a 'simulated' status with no actual response payload verification performed.",
+  "recommended_actions": [
+    "Upload missing mock response files for all adapter versions (karza_kyc_adapter/v2, cibil_bureau_adapter/v3, razorpay_payment_adapter/v1, aarogya_health_adapter/v1.2, twilio_sms_adapter/v2).",
+    "Re-run the simulation pipeline after populating the mock directory.",
+    "Verify that the credential environment variables are correctly injected in the test environment."
+  ],
+  "integration_results": [
+    {
+      "integration_id": "int_karza_001",
+      "adapter_id": "karza_kyc_adapter",
+      "version_tested": "v2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 8,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "Full Legal Name",
+        "Mobile Number",
+        "Date of Birth",
+        "Aadhaar Number",
+        "PAN Number",
+        "Gender",
+        "Current Address",
+        "Consent to eKYC"
+      ],
+      "transformation_rule_failures": [
+        "Encryption validation skipped due to missing mock data"
+      ],
+      "notes": "No mock file found for adapter version."
+    },
+    {
+      "integration_id": "int_cibil_001",
+      "adapter_id": "cibil_bureau_adapter",
+      "version_tested": "v3",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 3,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "PAN Number",
+        "Date of Birth",
+        "Consent to Credit Bureau Pull"
+      ],
+      "transformation_rule_failures": [
+        "Encryption validation skipped due to missing mock data"
+      ],
+      "notes": "No mock file found for adapter version."
+    },
+    {
+      "integration_id": "int_razorpay_001",
+      "adapter_id": "razorpay_payment_adapter",
+      "version_tested": "v1",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "Hospital Bank Account Number",
+        "Hospital IFSC Code",
+        "currency",
+        "customer_id",
+        "order_id",
+        "payment_method"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "No mock file found for adapter version."
+    },
+    {
+      "integration_id": "int_aarogya_001",
+      "adapter_id": "aarogya_health_adapter",
+      "version_tested": "v1.2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "ABHA Number",
+        "Medical Procedure Name",
+        "Empanelled Hospital Name",
+        "Hospital Registration Number",
+        "Estimated Procedure Cost",
+        "Consent to Health Record Access"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "No mock file found for adapter version."
+    },
+    {
+      "integration_id": "int_twilio_001",
+      "adapter_id": "twilio_sms_adapter",
+      "version_tested": "v2",
+      "status": "failed",
+      "confidence_score": 0,
+      "fields_mapped_correctly": 0,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [
+        "Mobile Number",
+        "from",
+        "body",
+        "account_sid"
+      ],
+      "transformation_rule_failures": [],
+      "notes": "No mock file found for adapter version."
+    }
+  ]
+}
