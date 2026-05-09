@@ -165,7 +165,7 @@ export default function DashboardPage() {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14, marginBottom: 40 }}>
           {visibleProjects.map((p, i) => {
-            const st = STATUS_STYLE[p.status] || { bg: "#f1f5f9", color: "#475569", dot: "#94a3b8" };
+            const st = STATUS_STYLE[p.pipeline_status || p.status] || { bg: "#f1f5f9", color: "#475569", dot: "#94a3b8" };
             return (
               <a key={i} href={`/projects/${p.client_id}`} className="card card-interactive"
                 style={{ padding: "20px 24px", textDecoration: "none", color: "inherit", display: "block" }}>
@@ -173,16 +173,16 @@ export default function DashboardPage() {
                   <span style={{ fontSize: 15.5, fontWeight: 700, color: "var(--text-primary)" }}>{p.client_name}</span>
                   <span className="badge" style={{ background: st.bg, color: st.color, display: "flex", alignItems: "center", gap: 5 }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: st.dot, display: "inline-block" }} />
-                    {p.status}
+                    {p.pipeline_status || p.status || "pending"}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 18, fontSize: 12.5, color: "var(--text-muted)", marginBottom: 6 }}>
                   <span>🆔 {p.client_id?.slice(0, 18)}</span>
-                  <span>🔌 {p.integration_count} integrations</span>
+                  <span>🔌 {p.active_integrations_count ?? p.integration_count ?? 0} integrations</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--text-muted)", paddingTop: 8, borderTop: "1px solid var(--border-subtle)" }}>
-                  <span>Config v{p.current_config_version}</span>
-                  <span>{new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                  <span>Config v{p.current_config_version || "1"}</span>
+                  <span>{p.created_at ? new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Unknown Date"}</span>
                 </div>
               </a>
             );
