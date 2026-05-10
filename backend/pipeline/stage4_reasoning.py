@@ -22,7 +22,8 @@ integration config so they can understand WHY things were set up the way they ar
 
 Write in professional, concise English. Use markdown headers, bullet points, tables, and
 warning callouts to make the document scannable. Be factual — reference specific adapter IDs,
-version numbers, and field names."""
+version numbers, and field names. Be actionable — for every gap or warning, provide a clear
+next step the reviewer should take."""
 
 REASONING_PROMPT = """You are given two inputs:
 
@@ -52,36 +53,52 @@ Generate a **Reasoning Report** in markdown format covering ALL of the following
 ## 1. Adapter Selection Rationale
 For each integration, explain:
 - Which adapter was chosen and why (use the `_adapter_reason` from the config)
-- If no adapter was matched, flag it as a ⚠️ warning
+- The match confidence level and semantic similarity score if available
+- If no adapter was matched (`adapter_id: "unmatched"`), add a ⚠️ warning with the service name
 
 ## 2. Version Selection & Deprecation Notices
 For each integration, explain:
 - Which version was selected and why (use `_version_reason`)
-- If a version was auto-upgraded because the BRD-requested version is deprecated, explain clearly with the old version, new version, and sunset date
-- If the selected version is itself deprecated, add a ⚠️ deprecation warning
+- If a version was auto-upgraded because the BRD-requested version is deprecated, explain clearly:
+  - Old requested version → new selected version → sunset date of old version
+- If the selected version is itself deprecated or beta, add a ⚠️ deprecation warning with the sunset date
 
 ## 3. Missing Required Fields
-Look through all field_mapping entries with `mapping_type: "missing"`:
-- List each missing required field by integration
-- Explain why it couldn't be mapped (use `_mapping_reason`)
-- Add a ⚠️ warning that these must be provided at runtime
+Look through ALL field_mapping entries with `mapping_type: "missing"` across all integrations.
+For each missing field, create a table row:
+
+| Integration | Missing Field | API Requirement | Suggested Source |
+|-------------|---------------|-----------------|------------------|
+| e.g. cibil  | mobile_number | Required for identity match | Collect in applicant intake form or source from upstream KYC |
+
+After the table, add a ⚠️ callout: "These fields must be resolved before production deployment."
+For each missing field, suggest which upstream service in THIS config could provide it at runtime
+(e.g. "pan_number for RiskGuard can be sourced from the Karza KYC response").
 
 ## 4. Unmatched APIs / Services
-Cross-reference the BRD text against the integrations:
-- If the BRD mentions any APIs, services, or integrations that are NOT present in the config (no matching adapter was found), list them here
-- If all BRD services are covered, state that explicitly
+Cross-reference the BRD text against the integrations array:
+- List any API or service mentioned in the BRD that has NO matched integration entry
+- For each unmatched service, suggest: (a) whether a similar adapter exists in common catalogs,
+  (b) whether a new adapter JSON should be created in `backend/catalogs/adapters/`
+- If all BRD services are fully covered, state that explicitly with ✅
 
 ## 5. Field Mapping Summary
-For each integration, provide a summary table or list:
-- Total fields mapped vs total required
-- Any computed or transformed fields
-- Any fields with special notes (encryption, format conversion, etc.)
+For each integration, provide a compact summary:
+- Total required fields: X mapped (direct/rename) + Y computed + Z missing
+- List any PII fields with their encryption transformation rule
+- List any format-conversion fields (e.g. date format changes)
 
 ## 6. Overall Assessment
-Provide a brief overall assessment:
-- How complete is the integration coverage?
-- Any critical gaps the reviewer should address?
-- Confidence level: High / Medium / Low
+Provide a structured assessment:
+
+**Coverage**: [X/Y integrations fully matched, Z with missing fields]
+**Confidence**: [High / Medium / Low — justify briefly]
+**Critical Actions Required** (⚠️ must fix before production):
+1. [action 1]
+2. [action 2]
+
+**Recommended Actions** (nice to have):
+- [recommendation 1]
 
 ---
 
@@ -119,14 +136,41 @@ def run_stage4(client_id: str, extracted_texts: dict) -> str:
         for filename, text in extracted_texts.items()
     )
 
-    # Truncate if too long (keep first 15K chars to stay within LLM context)
+    # Truncate BRD if too long (keep first 15K chars)
     if len(brd_text) > 15000:
         brd_text = brd_text[:15000] + "\n\n... [truncated for length]"
 
-    # Truncate config for LLM context
-    config_str = json.dumps(annotated_config, indent=2)
-    if len(config_str) > 30000:
-        config_str = config_str[:30000] + "\n... [truncated]"
+    # ── Build compact reasoning-only config summary ───────────────────────
+    # Extract only the fields the LLM needs — avoids 30K truncation cutting off integrations
+    compact_integrations = []
+    for integ in annotated_config.get("integrations", []):
+        compact_integrations.append({
+            "integration_id": integ.get("integration_id"),
+            "service_name": integ.get("service_name"),
+            "adapter_id": integ.get("adapter_id"),
+            "status": integ.get("status"),
+            "selected_version": integ.get("selected_version"),
+            "deprecated": integ.get("deprecated"),
+            "sunset_date": integ.get("sunset_date"),
+            "is_mandatory": integ.get("is_mandatory"),
+            "fallback_adapter": integ.get("fallback_adapter"),
+            "_adapter_reason": integ.get("_adapter_reason"),
+            "_version_reason": integ.get("_version_reason"),
+            "_brd_version_hint": integ.get("_brd_version_hint"),
+            "field_mapping": integ.get("field_mapping", []),  # includes _mapping_reason
+        })
+
+    compact_config = {
+        "metadata": {
+            "client": annotated_config.get("metadata", {}).get("client", {}),
+            "uploaded_documents": annotated_config.get("metadata", {}).get("uploaded_documents", []),
+        },
+        "integrations": compact_integrations,
+    }
+    config_str = json.dumps(compact_config, indent=2)
+    # Safety cap: 40K chars (compact view is much smaller so this rarely triggers)
+    if len(config_str) > 40000:
+        config_str = config_str[:40000] + "\n... [truncated]"
 
     # ── Generate reasoning report via LLM ─────────────────────────────────
     print(f"\n  📝 Generating reasoning report...")

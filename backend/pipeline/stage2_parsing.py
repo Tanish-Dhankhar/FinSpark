@@ -30,15 +30,63 @@ Your job is to exhaustively extract every integration signal from business requi
 
 Critical rules:
 1. Extract EVERY service or API mentioned — even if you have never heard of it.
-2. If the BRD names a specific API provider or product (e.g. "TransUnion CIBIL v2", "Razorpay", "DigiLocker"),
-   capture the exact name and version. Do NOT generalize or omit it.
+2. Capture exact names and versions as literally written. Do NOT generalize or omit.
 3. If a specific version is mentioned (e.g. "v2", "version 3.1", "2024 API"), capture it exactly.
+   If no version is mentioned, set version_hint to null and version_is_explicit to false.
 4. If a service is only vaguely described (e.g. "a credit scoring API"), still extract it with
    confidence="low" and your best guess at category and purpose.
-5. Capture ALL input/output fields mentioned anywhere in the document for each adapter.
-6. Capture ALL endpoint URLs, auth types, and webhook/callback mentions.
-7. DO NOT hallucinate services not mentioned. Only extract what is actually there.
-8. Be exhaustive — it is better to extract too much than to miss anything."""
+5. For input_fields_mentioned: ONLY capture fields explicitly named in the BRD for this service.
+   Do NOT include fields you think the API might need — that is the downstream engine's job.
+6. Mark is_mandatory=true ONLY if the BRD explicitly states the service is a REQUIRED INTEGRATION.
+   Mark is_mandatory=false for optional, conditional, or pure alerting/notification services.
+   IMPORTANT: A sentence that makes a monitoring or alerting process mandatory does NOT make the
+   underlying notification tool a mandatory integration — the obligation applies to the business
+   process, not the adapter. Outbound notification channels are always is_mandatory=false.
+
+7. CRITICAL — Assign the role field. Before assigning, apply this single discriminating test:
+
+   TEST: Does the system receive a RESPONSE from this service that it uses to make a business decision?
+   • YES → the service drives logic (score returned, status returned, verification result returned)
+             → role = "primary" or "fallback" (see below)
+   • NO  → the system only pushes data outward; no response consumed to drive logic
+             → role = "mentioned_only"
+
+   role = "primary" when:
+   • The BRD lists the service as an explicit, numbered, named integration requirement.
+   • The service follows a request-response model: the system sends data AND uses the response
+     to drive a business outcome (a decision, approval, verification, or transaction).
+   • Linguistic signals: "SHALL use", "MUST integrate", "required", "mandatory integration",
+     "the platform uses [service] for [purpose]".
+
+   role = "fallback" when:
+   • The document explicitly positions this service as a contingency only triggered when
+     a named primary service is unavailable or fails.
+   • Linguistic signals: "fallback to", "if [primary] fails", "in case [primary] is unavailable",
+     "alternative if", "backup", "secondary provider", "failover to", "retry with".
+
+   role = "mentioned_only" when ANY of these structural signals are present:
+   • The document describes the service as a RECIPIENT of outbound events the system generates:
+     the system SENDS notifications/alerts/events TO the service; the service returns nothing
+     that the system consumes. BRD patterns: "alert [audience] via [service]",
+     "notify [channel] when [event]", "send [event] to [service] on [trigger]",
+     "[service] webhook on [condition]", "monitoring via", "operational alert to".
+     These are hook signals, NOT integration requirements.
+   • The service has no named input fields in the BRD and no named output fields — the document
+     only says the system will POST to it or trigger it, never what data the system reads back.
+   • The service is mentioned purely for comparison, background, or future consideration.
+   • The document explicitly excludes it: "out of scope", "not required", "do NOT integrate".
+
+   Tie-breaking rules:
+   • Uncertain between primary and fallback → prefer "primary".
+   • Uncertain between primary and mentioned_only → apply the TEST above.
+     If no response drives any business logic → choose "mentioned_only".
+   • A service that only RECEIVES outbound calls from the system is NEVER primary.
+
+
+8. For hook_signals: capture conditional triggers with their exact condition/threshold
+   (e.g. "route to fraud queue if score >= 75", "call webhook on payment success").
+9. DO NOT hallucinate services not mentioned. Only extract what is in the document.
+10. Be exhaustive — it is better to extract too much than to miss anything."""
 
 EXTRACTION_PROMPT_TEMPLATE = """Analyze the following enterprise document(s) and extract ALL integration requirements.
 
@@ -58,44 +106,54 @@ Leave fields as null if not mentioned — never fabricate information.
 {{
   "services_detected": [
     {{
-      "service_name": "Exact name as mentioned in the document (e.g. 'TransUnion CIBIL', 'Razorpay Payment Gateway')",
+      "service_name": "Exact name of the service/API as written in the document — do not paraphrase or generalize",
       "provider": "Provider/vendor name if mentioned, else null",
       "category": "one of the known categories above",
-      "is_mandatory": true,
-      "confidence": "high (explicitly named) / medium (clearly implied) / low (vaguely described)",
-      "exact_api_name_from_doc": "Copy the exact string used in the document to name this API, if any",
-      "version_hint": "Exact version string mentioned (e.g. 'v2', '3.1', '2024') or null if not mentioned",
-      "version_is_explicit": true,
-      "endpoint_hints": ["Any endpoint URLs or paths literally mentioned in the document"],
-      "auth_type_hint": "Any auth type mentioned (OAuth2, API Key, Basic Auth) or null",
-      "purpose": "Why is this service needed? What business problem does it solve?",
+      "is_mandatory": "true if BRD explicitly says required/mandatory, false for optional/conditional, true by default if unclear",
+      "role": "primary | fallback | mentioned_only — see system rules. This field is MANDATORY.",
+      "fallback_for": "If role=fallback: the service_name of the PRIMARY service this is a fallback for. Else null.",
+      "confidence": "high (explicitly named API) / medium (clearly implied but not named) / low (vaguely described)",
+      "exact_api_name_from_doc": "Copy the EXACT string the document uses to name this API or service — do not paraphrase",
+      "version_hint": "Exact version string if mentioned (e.g. 'v2', '3.1', 'Latest stable') or null. Do not guess.",
+      "version_is_explicit": "true only if a specific version number was stated, false otherwise",
+      "endpoint_hints": ["Any endpoint URLs or paths literally quoted in the document"],
+      "auth_type_hint": "Auth type if explicitly mentioned (e.g. 'OAuth2', 'API Key', 'Bearer token') or null",
+      "purpose": "Concise explanation: what business problem does this service solve in THIS project?",
       "input_fields_mentioned": [
         {{
-          "field_name": "exact field name from doc",
-          "field_type": "string/integer/date/boolean/etc if mentioned, else null",
-          "is_pii": true,
-          "notes": "any validation rules, formats, or constraints mentioned"
+          "field_name": "ONLY fields explicitly named in the BRD for THIS service — do not add assumed fields",
+          "field_type": "string/integer/date/boolean — from document only, else null",
+          "is_pii": "true if name/Aadhaar/PAN/phone/DOB/account/address, else false",
+          "notes": "validation rules, formats, value constraints mentioned for this field"
         }}
       ],
-      "output_fields_mentioned": ["list of response/output field names mentioned"],
-      "compliance_requirements": ["RBI, KYC, AML, GDPR, etc. — only if explicitly linked to this service"],
-      "hook_signals": ["Any webhook, callback, event, or notification mentions for this specific service"],
-      "additional_context": "Any other relevant detail about this service from the document"
+      "output_fields_mentioned": ["response/output field names explicitly mentioned in the BRD for this service"],
+      "compliance_requirements": ["RBI, KYC, PMLA, DPDP, GDPR, etc. — ONLY if explicitly linked to this specific service"],
+      "hook_signals": [
+        "Capture ALL conditional triggers: e.g. 'Route to Fraud Investigation Queue if risk score >= 75'.",
+        "Include the threshold or condition exactly as stated.",
+        "Also capture: callbacks, webhooks, event notifications, post-call actions."
+      ],
+      "additional_context": "Any other relevant constraints, dependencies, or SLA requirements for this service"
     }}
   ],
   "general_requirements": {{
     "industry_vertical": "detected industry (e.g. lending, insurance, payments)",
     "region": "country/region if mentioned",
-    "security_requirements": ["encryption, HTTPS, mTLS, etc."],
-    "compliance_requirements": ["all compliance standards mentioned globally"],
+    "security_requirements": ["all encryption, HTTPS, mTLS, certificate pinning mentions"],
+    "compliance_requirements": ["ALL compliance standards mentioned anywhere in the document"],
     "data_fields_global": ["every data field name mentioned anywhere in the entire document"],
-    "global_hook_signals": ["any webhook/event/notification mentions not tied to a specific service"],
-    "non_catalog_apis": ["list any APIs mentioned that seem custom or non-standard"]
+    "global_hook_signals": ["webhook/event/notification mentions not tied to a single specific service"],
+    "non_catalog_apis": ["APIs or services that seem custom-built, internal, or non-standard"]
   }}
 }}
 
-IMPORTANT: If the BRD mentions a specific API by name (even one you don't recognize),
-always include it. The downstream matching engine will decide if it's in our catalog.
+CRITICAL:
+- If the BRD names a specific API or provider, always include it — even if unfamiliar.
+  The downstream matching engine will handle catalog lookup.
+- Do NOT add input fields that you think an API would need. Only capture what the BRD explicitly states.
+- hook_signals must capture the business trigger condition (score threshold, event type), not just
+  'webhook mentioned'.
 """
 
 TEMPLATE_FILL_SYSTEM_PROMPT = """You are an enterprise integration configuration engine.
@@ -105,12 +163,24 @@ extracted from requirement documents.
 Rules:
 1. Fill every field you can CONFIDENTLY populate from the provided requirements.
 2. Do NOT remove or restructure any fields from the template.
-3. Leave unfillable fields exactly as they are in the template.
-4. For the integrations array, create one skeleton entry per detected service.
-   Leave adapter_id, endpoint_url, auth_type, field_mapping EMPTY — Stage 3 will fill these.
-5. Populate: integration_id, service_name, category, is_mandatory, status="detected",
-   and any version_hint from the BRD.
-6. Return ONLY valid JSON — the complete config with filled fields."""
+3. Leave unfillable fields as empty strings or empty arrays — never remove them.
+4. CRITICAL: Only create integration skeleton entries for services where role == "primary".
+   Services with role=="fallback" or role=="mentioned_only" must NOT get their own integration stub.
+   Fallback services will be referenced in the fallback_adapter field of the primary integration by Stage 3.
+5. Populate these fields from the extracted requirements:
+   - integration_id: snake_case unique ID derived from the service_name
+     Pattern: take key words from service_name, lowercase, join with underscores, suffix _001.
+     (e.g. "Acme Credit Score API v3" → "acme_credit_score_001"; "FooBar KYC Engine" → "foobar_kyc_001")
+
+   - service_name: exact name from extraction
+   - category: from extraction
+   - is_mandatory: from extraction (true/false)
+   - status: always "detected" at this stage
+   - _brd_version_hint: copy version_hint from extraction (even if null)
+   - _brd_purpose: copy purpose from extraction
+   - _brd_input_fields: copy only the field_name values from input_fields_mentioned
+   - _brd_fallback_hint: if the BRD names a fallback for this service, capture the fallback's service name here
+6. Return ONLY valid JSON — the COMPLETE config with ALL fields preserved."""
 
 TEMPLATE_FILL_PROMPT = """Here are the extracted integration requirements:
 {requirements_summary}
@@ -118,13 +188,13 @@ TEMPLATE_FILL_PROMPT = """Here are the extracted integration requirements:
 Here is the current configuration template:
 {current_config}
 
-Create one integration skeleton entry per detected service in the "integrations" array:
+For each service in "services_detected" where role == "primary", create ONE integration skeleton entry:
 {{
-  "integration_id": "unique_id based on service name",
-  "service_name": "service name from requirements",
+  "integration_id": "snake_case_unique_id derived from service_name (lowercase, underscores, suffix _001)",
+  "service_name": "exact service_name from extraction",
   "adapter_id": "",
-  "category": "category from requirements",
-  "is_mandatory": true/false,
+  "category": "category from extraction",
+  "is_mandatory": true,
   "status": "detected",
   "selected_version": "",
   "endpoint_url": "",
@@ -137,13 +207,22 @@ Create one integration skeleton entry per detected service in the "integrations"
   "retry_policy": {{}},
   "sandbox_url": "",
   "fallback_adapter": null,
-  "_brd_version_hint": "version string from BRD if any, else null",
-  "_brd_purpose": "purpose extracted from BRD",
-  "_brd_input_fields": []
+  "_brd_version_hint": "copy version_hint from this service's extraction — string like 'v2' or 'Latest stable', or null",
+  "_brd_purpose": "copy purpose from this service's extraction",
+  "_brd_input_fields": ["copy only the field_name strings from input_fields_mentioned for this service"],
+  "_brd_fallback_hint": "service name of the fallback provider if BRD names one, else null"
 }}
 
-Also fill in metadata: industry_vertical, region, uploaded_documents.
-Return the COMPLETE config JSON with all fields preserved.
+Also populate these metadata fields from general_requirements:
+- metadata.client.industry_vertical
+- metadata.client.region
+- metadata.uploaded_documents (already set, do not change)
+
+CRITICAL RULES:
+- ONLY include services with role=="primary" in the integrations array.
+- Do NOT create stubs for fallback or mentioned_only services.
+- Do NOT merge multiple services into one integration entry.
+- Return the COMPLETE config JSON. Do not remove any existing top-level keys.
 """
 
 
@@ -236,16 +315,80 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
                 current_config[key] = filled_config[key]
         filled_config = current_config
 
+    # ── DETERMINISTIC ROLE FILTER ──────────────────────────────────────────
+    # Uses only structural signals already extracted by the LLM — no hardcoded
+    # service names, category strings, or domain-specific terms.
+    # This is deterministic Python code; it does NOT rely on the LLM following instructions.
+
+    role_lookup: dict = {}           # service_name (lower) → role string
+    input_fields_lookup: dict = {}   # service_name (lower) → count of input_fields_mentioned
+    output_fields_lookup: dict = {}  # service_name (lower) → count of output_fields_mentioned
+    hook_mentioned_names: set = set()  # service names appearing ONLY in other services' hook_signals
+
+    for svc in requirements.get("services_detected", []):
+        name = (svc.get("service_name") or "").strip().lower()
+        role = (svc.get("role") or "primary").strip().lower()
+        role_lookup[name] = role
+        input_fields_lookup[name] = len(svc.get("input_fields_mentioned", []))
+        output_fields_lookup[name] = len(svc.get("output_fields_mentioned", []))
+
+    # Collect service names that appear only as hook/event targets in other services.
+    # A service with no BRD fields that is only a hook target is structurally outbound-only.
+    for svc in requirements.get("services_detected", []):
+        for hook in svc.get("hook_signals", []):
+            hook_lower = hook.lower()
+            for candidate_name in role_lookup:
+                if candidate_name in hook_lower:
+                    hook_mentioned_names.add(candidate_name)
+
+    # Filter integration stubs — ONLY keep services classified as "primary"
+    original_stubs = filled_config.get("integrations", [])
+    primary_stubs = []
+    filtered_out = []
+
+    for stub in original_stubs:
+        stub_name = (stub.get("service_name") or "").strip().lower()
+        # Default to "primary" if the LLM didn't classify this service at all
+        role = role_lookup.get(stub_name, "primary")
+
+        # ── Structural safety net (domain-agnostic) ────────────────────────
+        # Demote to mentioned_only if ALL three signals hold:
+        #   1. Zero BRD input fields (the system sends no structured data to it), AND
+        #   2. Zero BRD output fields (the system reads nothing back from it), AND
+        #   3. It appears in other services' hook_signals (it is a notification target).
+        # This pattern matches any outbound-only channel regardless of name or industry.
+        if role == "primary":
+            has_no_inputs  = input_fields_lookup.get(stub_name, -1) == 0
+            has_no_outputs = output_fields_lookup.get(stub_name, -1) == 0
+            is_hook_target = stub_name in hook_mentioned_names
+            if has_no_inputs and has_no_outputs and is_hook_target:
+                role = "mentioned_only"
+                print(f"     ⚡ Safety net: demoted '{stub.get('service_name')}' "
+                      f"(0 BRD input fields, 0 output fields, hook target only) → mentioned_only")
+
+        if role in ("fallback", "mentioned_only"):
+            filtered_out.append((stub.get("service_name", "unknown"), role))
+        else:
+            primary_stubs.append(stub)
+
+    filled_config["integrations"] = primary_stubs
+
+
+    if filtered_out:
+        print(f"     🔽 Filtered out {len(filtered_out)} non-primary stubs:")
+        for name, role in filtered_out:
+            print(f"        • [{role.upper()}] {name}")
+
     # Save updated config
     save_config(client_id, filled_config)
     integrations_count = len(filled_config.get("integrations", []))
-    print(f"     ✅ Config skeleton created with {integrations_count} integration stubs")
+    print(f"     ✅ Config skeleton created with {integrations_count} primary integration stubs")
     print(f"        (Stage 3 will enrich each stub via vector search + adapter JSON)")
 
     emit_audit_event(
         client_id=client_id,
         stage="stage_2_parsing",
-        action=f"Config skeleton filled with {integrations_count} integration stubs",
+        action=f"Config skeleton filled with {integrations_count} stubs ({len(filtered_out)} fallbacks/mentioned-only filtered)",
         agent="gemini_flash_lite",
         input_data=json.dumps(requirements)[:200],
         output_data=json.dumps(filled_config)[:200],
@@ -253,3 +396,4 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
 
     print(f"\n  ✅ Stage 2 complete")
     return requirements
+

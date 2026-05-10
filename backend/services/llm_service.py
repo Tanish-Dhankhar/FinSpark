@@ -127,31 +127,74 @@ def call_llm_json(
 
 
 def _parse_json_response(raw: str) -> dict:
-    """Parse JSON from LLM response, handling common formatting issues."""
-    # Try direct parse first
+    """Parse JSON from LLM response, handling common formatting issues.
+    
+    Recovery order:
+    1. Direct parse (fast path)
+    2. Strip markdown code fences
+    3. json_repair (if installed) — handles truncated/malformed JSON
+    4. Partial recovery — find the last complete top-level object
+    5. Hard failure with diagnostic context
+    """
+    if not raw or not raw.strip():
+        raise ValueError("LLM returned an empty response.")
+
+    # ── 1. Direct parse ───────────────────────────────────────────────────
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
-    # Try extracting from markdown code blocks
-    if "```json" in raw:
-        start = raw.index("```json") + 7
-        end = raw.index("```", start)
-        try:
-            return json.loads(raw[start:end].strip())
-        except json.JSONDecodeError:
-            pass
-    
-    if "```" in raw:
-        start = raw.index("```") + 3
-        # Skip language identifier if on same line
-        newline = raw.index("\n", start)
-        start = newline + 1
-        end = raw.index("```", start)
-        try:
-            return json.loads(raw[start:end].strip())
-        except json.JSONDecodeError:
-            pass
+    # ── 2. Strip markdown code fences ────────────────────────────────────
+    cleaned = raw
+    for fence in ("```json", "```"):
+        if fence in raw:
+            try:
+                start = raw.index(fence) + len(fence)
+                # skip optional language tag on same line
+                newline = raw.index("\n", start)
+                start = newline + 1
+                end = raw.index("```", start)
+                candidate = raw[start:end].strip()
+                return json.loads(candidate)
+            except (ValueError, json.JSONDecodeError):
+                pass
 
-    raise ValueError(f"Could not parse JSON from LLM response. Raw response:\n{raw[:500]}")
+    # ── 3. json_repair (handles truncated JSON gracefully) ────────────────
+    try:
+        from json_repair import repair_json  # type: ignore
+        repaired = repair_json(raw, return_objects=True)
+        if isinstance(repaired, (dict, list)):
+            print("  ⚠️  JSON was repaired (response may have been truncated by token limit).")
+            return repaired if isinstance(repaired, dict) else {"_repaired_list": repaired}
+    except ImportError:
+        pass  # json_repair not installed — fall through to partial recovery
+
+    # ── 4. Partial recovery: salvage last complete JSON object ────────────
+    # The LLM response was cut off mid-JSON. Walk backwards from the end to
+    # find the last position where the JSON is syntactically closed.
+    for cutoff in range(len(raw), 0, -1):
+        candidate = raw[:cutoff].rstrip()
+        # Try appending closing brackets to make it valid
+        for closer in ("", "}", "}]}", "}]}\n}", "}]}"):
+            try:
+                result = json.loads(candidate + closer)
+                if isinstance(result, dict) and result:
+                    print(
+                        f"  ⚠️  JSON truncated at token limit — recovered partial response "
+                        f"({cutoff}/{len(raw)} chars). Some services may be missing."
+                    )
+                    return result
+            except json.JSONDecodeError:
+                continue
+        # Only scan the last 200 chars before giving up (avoid O(n²) on huge strings)
+        if len(raw) - cutoff > 200:
+            break
+
+    raise ValueError(
+        f"Could not parse JSON from LLM response. "
+        f"The response may have been truncated ({len(raw)} chars). "
+        f"Consider increasing GEMINI_MAX_OUTPUT_TOKENS. "
+        f"First 500 chars:\n{raw[:500]}"
+    )
+

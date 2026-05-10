@@ -45,7 +45,7 @@ CLIENT_SUBDIRS = [
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Gemini 3.1 Flash Lite (generation)
 # Note: embedding model is GEMINI_EMBEDDING_MODEL = "text-embedding-005" (see above)
 GEMINI_TEMPERATURE = 0.2  # Low temperature for structured extraction
-GEMINI_MAX_OUTPUT_TOKENS = 8192   # Per-service calls: one integration JSON at a time
+GEMINI_MAX_OUTPUT_TOKENS = 16384  # Enough for complex BRDs with many services (was 8192)
 
 # ── Pipeline Settings ───────────────────────────────────────────────────────
 MAX_CORRECTION_ITERATIONS = 3

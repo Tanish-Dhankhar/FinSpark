@@ -39,36 +39,53 @@ from backend.services.vector_service import (
 # ── Prompt Templates ────────────────────────────────────────────────────────
 
 ADAPTER_PICK_SYSTEM = """You are an enterprise integration adapter selector.
-You receive top-3 semantically retrieved adapter candidates for ONE service.
-Pick the SINGLE best adapter. Consider: semantic_similarity_score (higher=better),
-category alignment, and version hints from the BRD.
-If the BRD names a specific provider (e.g. 'CIBIL', 'Razorpay'), prefer that exact match.
-If multiple candidates are from the same category, pick the one with the highest score.
-Only use adapter IDs exactly as listed in the provided candidates list — do not invent new IDs."""
+You receive semantically retrieved adapter candidates for ONE service.
+Pick the SINGLE best adapter using these priority rules:
+
+1. EXACT MATCH FIRST: If the BRD names a specific provider (e.g. 'CIBIL', 'Razorpay', 'Karza'),
+   prefer the candidate whose adapter_id or name exactly matches that provider. Ignore similarity score.
+2. CATEGORY ALIGNMENT: The adapter category must match the service category.
+3. SEMANTIC SCORE: Among remaining candidates, pick the highest semantic_similarity_score.
+4. VERSION: When selecting a version, prefer the latest STABLE, non-deprecated version.
+   Never select a beta or deprecated version unless it is the only option.
+5. NEVER invent adapter IDs. Only use IDs exactly as listed in the candidates.
+
+If no candidate is a reasonable match (score below 0.3 and no name match), set adapter_id to "unmatched"."""
 
 ADAPTER_PICK_PROMPT = """Service requirement from BRD:
 {service_info}
 
-Top-3 adapter candidates (ranked by semantic similarity):
+Adapter candidates (ranked by semantic similarity):
 {candidates}
 
-Pick the single best adapter. Return JSON:
+Select the single best adapter. Respond ONLY with this JSON (no extra text):
 {{
-  "adapter_id": "chosen adapter id from candidates",
-  "recommended_version": "best version to use",
+  "adapter_id": "exact adapter_id string from candidates list above",
+  "recommended_version": "latest stable non-deprecated version string (e.g. 'v2', 'v3')",
   "match_confidence": "high/medium/low",
   "semantic_similarity_score": 0.0,
-  "reason": "why this adapter was chosen"
+  "reason": "one sentence: why this adapter and version"
 }}
 
-If no candidate is suitable, set adapter_id to "unmatched"."""
+If no candidate fits, set adapter_id to "unmatched" and explain in reason."""
 
 INTEGRATION_FILL_SYSTEM = """You are an enterprise integration configuration engine.
-You receive the FULL adapter catalog JSON for ONE matched adapter.
-Fill the integration config entry using the adapter data and BRD requirements.
-Use $ENV_VAR_NAME format for all credentials — never put real secrets.
-Be precise: copy exact values from the adapter JSON (endpoints, auth_type, timeout, retry_policy).
-Include reasoning annotations for every major decision."""
+You receive the FULL adapter catalog JSON for ONE matched adapter and the service requirements from the BRD.
+Fill the integration config entry precisely.
+
+Core rules:
+- Copy exact values from the adapter JSON: endpoints, auth_type, timeout_ms, retry_policy, sandbox_base_url.
+- Prefix ALL credential references with $: e.g. "$KARZA_API_KEY", never bare variable names.
+- endpoint_url = adapter base_url + selected version's endpoint path.
+- For field_mapping, map EVERY required_field from the adapter JSON:
+    * If a BRD input field covers it (same concept, possibly different name) → mapping_type="rename" or "direct"
+    * If a BRD field needs type/format conversion → mapping_type="computed"
+    * If NO BRD field covers it → mapping_type="missing", user_field="N/A"
+      DO NOT use null or "null" string for user_field — use the string "N/A".
+- For transformation_rules: generate encrypt rules for all PII fields (PAN, Aadhaar, DOB, phone, account_number).
+- DO NOT select a deprecated version. If the version marked for selection is deprecated, use the
+  latest stable version from the versions list and explain in _version_reason.
+- Include _mapping_reason and _adapter_reason/_version_reason annotations."""
 
 INTEGRATION_FILL_PROMPT = """Fill the integration config for this ONE service.
 
@@ -81,78 +98,95 @@ CHOSEN ADAPTER (full catalog entry):
 CHOSEN VERSION: {chosen_version}
 MATCH REASON: {match_reason}
 
-Fill this integration config object completely:
+Return a SINGLE JSON object with EXACTLY this structure:
 {{
-  "integration_id": "keep existing value",
-  "service_name": "keep existing value",
+  "integration_id": "keep the existing integration_id value",
+  "service_name": "keep the existing service_name value",
   "adapter_id": "{adapter_id}",
-  "category": "from adapter",
-  "is_mandatory": true/false,
+  "category": "copy category from adapter JSON",
+  "is_mandatory": true,
   "status": "adapter_matched",
   "selected_version": "{chosen_version}",
-  "endpoint_url": "base_url + version endpoint from adapter JSON",
-  "auth_type": "from adapter JSON",
-  "credential_env_vars": ["$VAR references from adapter JSON"],
-  "timeout_ms": "from adapter JSON",
-  "retry_policy": {{}},
-  "sandbox_url": "sandbox_base_url from adapter JSON",
-  "fallback_adapter": "from adapter JSON",
-  "deprecated": "true/false from selected version entry",
-  "sunset_date": "from selected version entry or null",
+  "endpoint_url": "adapter base_url + selected version endpoint path, e.g. https://api.cibil.com/v3/consumer/score",
+  "auth_type": "copy auth_type from adapter JSON exactly",
+  "credential_env_vars": ["$EACH_VAR from adapter credential_env_vars, prefixed with $"],
+  "timeout_ms": "copy timeout_ms from adapter JSON (integer)",
+  "retry_policy": {{"max_retries": 0, "backoff_strategy": "fixed"}},
+  "sandbox_url": "copy sandbox_base_url from adapter JSON",
+  "fallback_adapter": "copy fallback_adapter from adapter JSON or null",
+  "deprecated": false,
+  "sunset_date": null,
   "field_mapping": [
     {{
-      "user_field": "field from BRD input_fields_mentioned",
-      "api_field": "corresponding field from adapter required_fields/optional_fields",
-      "mapping_type": "direct/rename/computed/missing",
-      "description": "why this mapping",
-      "_mapping_reason": "detailed explanation"
+      "user_field": "BRD field name if mapped, or 'N/A' if missing from BRD",
+      "api_field": "required_field or optional_field name from adapter JSON",
+      "mapping_type": "direct | rename | computed | missing",
+      "description": "short description of this mapping",
+      "_mapping_reason": "why this specific mapping was chosen"
     }}
   ],
   "transformation_rules": [
     {{
-      "source_field": "input field",
-      "target_field": "output field",
-      "rule_type": "type_cast/encrypt/format/compute",
-      "rule": "description",
-      "example": "example transformation"
+      "source_field": "BRD field name",
+      "target_field": "API field name",
+      "rule_type": "encrypt | format | type_cast | compute",
+      "rule": "description of the transformation",
+      "example": "concrete before/after example"
     }}
   ],
   "hooks": [],
-  "_adapter_reason": "why this adapter was chosen",
-  "_version_reason": "why this version was chosen"
+  "_adapter_reason": "why this adapter was selected",
+  "_version_reason": "why this specific version was chosen (and if auto-upgraded from deprecated, explain)"
 }}
 
-FIELD MAPPING RULES:
-- Map ALL required_fields from the adapter — if a BRD field covers it, map it (direct/rename)
-- If a required adapter field has NO BRD data, include it with mapping_type="missing"
-- Generate encryption transformation_rules for PII fields (PAN, Aadhaar, DOB, phone)
-- If BRD mentions a version that is deprecated, select the latest non-deprecated version instead
+FIELD MAPPING RULES (apply in order):
+1. For EVERY field in adapter required_fields:
+   a. Find the BRD input field with the same or semantically equivalent meaning.
+   b. If found: mapping_type="direct" (same name) or "rename" (different name).
+   c. If no BRD field covers it: mapping_type="missing", user_field="N/A".
+      Add a _mapping_reason explaining which upstream service should provide this field at runtime.
+2. For adapter optional_fields: include mappings if BRD mentions those fields.
+3. For PII fields (PAN, Aadhaar, phone, DOB, bank account): add an encrypt entry in transformation_rules.
 
-Return ONLY the JSON object above (one integration entry, not the whole config)."""
+Return ONLY the JSON object (no markdown, no explanation outside the JSON)."""
 
-HOOK_PICK_SYSTEM = """You are a hook selection engine for enterprise integrations.
-You receive top-5 semantically retrieved hook candidates for ONE integration.
-Select the appropriate hooks from the candidates list.
-Mandatory hooks to include if present in candidates:
-  credential_resolve_hook, pre_auth_hook, retry_hook, on_failure_alert_hook, audit_emit_hook
-Additional for bureau/kyc: field_encryption_hook, post_schema_validation_hook
-Always use hook IDs exactly as listed in candidates."""
+HOOK_PICK_SYSTEM = """You are a hook selection engine for enterprise integration pipelines.
+You receive semantically retrieved hook candidates for ONE integration.
+Select the appropriate hooks by applying these rules:
+
+MANDATORY for ALL integrations (include if present in candidates):
+  - credential_resolve_hook: required before any auth injection
+  - pre_auth_hook: required for any authenticated call
+  - retry_hook: required for any external HTTP adapter
+  - on_failure_alert_hook: required for all mandatory integrations
+
+ADDITIONAL rules by category:
+  - KYC / bureau / banking: also include field_encryption_hook (PII data must be encrypted)
+  - fraud / bureau: also include post_schema_validation_hook if present
+  - Any adapter with compliance_requirements: also include audit_emit_hook if present
+
+Always use hook_id values EXACTLY as they appear in the candidates list.
+Do NOT invent hook IDs. If a mandatory hook is not in the candidates list, still list it —
+the caller will handle missing candidates gracefully."""
 
 HOOK_PICK_PROMPT = """Integration context:
 {integration_info}
 
-Top-5 hook candidates (ranked by semantic similarity):
+Available hook candidates (ranked by semantic similarity):
 {candidates}
 
-Select appropriate hooks for this integration. Return JSON:
+Select all appropriate hooks for this integration. Respond ONLY with this JSON:
 {{
-  "assigned_hooks": ["hook_id_1", "hook_id_2", ...]
-}}"""
+  "assigned_hooks": ["hook_id_1", "hook_id_2"]
+}}
+
+Apply the mandatory hook rules from your system instructions.
+Only include hook_ids that appear in the candidates list above."""
 
 HOOK_FILL_SYSTEM = """You are a hook configuration engine.
-Populate the hooks array for ONE integration using the full hook catalog JSONs.
-Each hook entry must include all fields from the hook JSON.
-Set lifecycle_state to 'registered' for all hooks."""
+For each assigned hook, return a complete hook object using fields from the hook catalog JSON.
+Set lifecycle_state to 'registered' for all hooks.
+Prefix ALL credential_env_vars with $ (e.g. "$CLIENT_ENCRYPTION_KEY")."""
 
 HOOK_FILL_PROMPT = """Integration:
 {integration_info}
@@ -162,21 +196,33 @@ Assigned hook IDs: {hook_ids}
 Full hook catalog data:
 {hook_details}
 
-Return the populated hooks array for this integration:
+Return ONLY a JSON array. Each element is one hook object populated from the catalog data above.
+Use this exact structure for each hook (copy all values from the catalog):
 [
   {{
-    "hook_id": "from catalog",
-    "hook_name": "from catalog",
-    "hook_type": "from catalog",
+    "hook_id": "from catalog hook_id field",
+    "hook_name": "from catalog hook_name field",
+    "hook_type": "from catalog hook_type field",
+    "description": "from catalog description field",
+    "use_cases": ["from catalog use_cases array"],
+    "semantic_tags": ["from catalog semantic_tags array"],
+    "when_to_use": "from catalog when_to_use field",
+    "trigger_condition": "from catalog trigger_condition field",
+    "applicable_adapters": ["from catalog applicable_adapters array"],
     "lifecycle_state": "registered",
-    "execution_order": 1,
+    "execution_order": 0,
     "is_blocking": true,
-    "trigger_condition": "from catalog",
-    "timeout_ms": 5000
+    "payload_template": {{}},
+    "input_parameters": [],
+    "output": {{}},
+    "timeout_ms": 1000,
+    "retry_policy": {{}},
+    "credential_env_vars": ["$PREFIXED from catalog credential_env_vars"],
+    "audit_on_trigger": true
   }}
 ]
 
-Return ONLY the JSON array of hook objects."""
+Return ONLY the JSON array. No markdown fences, no explanation."""
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
