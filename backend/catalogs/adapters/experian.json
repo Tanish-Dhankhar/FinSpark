@@ -1,10 +1,27 @@
 {
   "adapter_name": "Experian Credit Score",
   "category": "bureau",
-  "description": "Fetch customer credit score and credit history from Experian India.",
   "provider": "Experian India",
-  "base_url": "https://api.experian.in",
+  "description": "Fetches credit scores and comprehensive credit reports for Indian consumers from Experian India, one of the four RBI-licensed credit bureaus. Used for loan underwriting, risk stratification, and borrower financial health assessment. Returns a score between 300-900 along with DPD buckets, overdue accounts, total outstanding debt, and credit utilization. Commonly used as an alternative to or in parallel with CIBIL for cross-verification.",
+  "use_cases": [
+    "Alternative bureau check when CIBIL returns no-hit",
+    "Cross-bureau verification for high-value loans",
+    "MSME and personal loan underwriting",
+    "Borrower risk scoring for co-lending or pool origination",
+    "Negative list screening and default history review",
+    "Credit portfolio monitoring"
+  ],
+  "semantic_tags": [
+    "credit score", "Experian", "credit bureau", "creditworthiness", "loan underwriting",
+    "repayment history", "DPD buckets", "days past due", "overdue accounts",
+    "bureau report", "credit risk", "risk band", "borrower assessment",
+    "India bureau", "PAN lookup", "cross-bureau", "outstanding debt"
+  ],
+  "compliance_context": "RBI licensed credit bureau under Credit Information Companies (Regulation) Act, 2005. Requires explicit borrower consent before pulling report.",
+  "typical_callers": "Banks, NBFCs, fintech lenders, credit card issuers, co-lending platforms seeking bureau cross-verification",
+  "auth_description": "OAuth2 client credentials. Client ID and secret used to obtain access token before API calls.",
   "auth_type": "oauth2",
+  "base_url": "https://api.experian.in",
   "credential_env_vars": [
     "EXPERIAN_CLIENT_ID",
     "EXPERIAN_CLIENT_SECRET"
@@ -42,37 +59,37 @@
     {
       "field_name": "pan_number",
       "type": "string",
-      "description": "Customer PAN",
+      "description": "Customer PAN card number for bureau identity lookup",
       "validation": "10 char alphanumeric"
     },
     {
       "field_name": "full_name",
       "type": "string",
-      "description": "Full name exactly as per PAN",
+      "description": "Full name exactly as per PAN card",
       "validation": "min length 3"
     },
     {
       "field_name": "date_of_birth",
       "type": "date",
-      "description": "Date of Birth",
+      "description": "Date of Birth for identity verification",
       "validation": "ISO 8601 date"
     },
     {
       "field_name": "mobile_number",
       "type": "string",
-      "description": "10 digit mobile number",
+      "description": "10 digit mobile number for cross-reference",
       "validation": "10 digit numeric"
     },
     {
       "field_name": "address",
       "type": "string",
-      "description": "Current address of the customer",
+      "description": "Current residential address",
       "validation": "min length 10"
     },
     {
       "field_name": "pin_code",
       "type": "string",
-      "description": "6 digit postal PIN code",
+      "description": "6 digit postal PIN code of current address",
       "validation": "6 digit numeric"
     }
   ],
@@ -80,65 +97,38 @@
     {
       "field_name": "email",
       "type": "string",
-      "description": "Email ID for better matching",
+      "description": "Email address for better identity matching",
       "default_value": "null"
     },
     {
       "field_name": "consent_timestamp",
       "type": "date",
-      "description": "When consent was given",
+      "description": "Timestamp when borrower provided consent",
       "default_value": "current_timestamp"
     },
     {
       "field_name": "loan_enquiry_amount",
       "type": "integer",
-      "description": "Amount the customer is applying for",
+      "description": "Loan amount the customer is applying for",
       "default_value": "0"
     },
     {
       "field_name": "enquiry_purpose",
       "type": "string",
-      "description": "Type of loan applied for",
+      "description": "Type of loan being applied for",
       "default_value": "PERSONAL_LOAN"
     }
   ],
   "response_schema": {
-    "experian_score": {
-      "type": "integer",
-      "description": "Score between 300 to 900"
-    },
-    "score_band": {
-      "type": "string",
-      "description": "Risk band description"
-    },
-    "active_loans": {
-      "type": "integer",
-      "description": "Number of currently active loan accounts"
-    },
-    "overdue_accounts": {
-      "type": "integer",
-      "description": "Number of accounts currently overdue"
-    },
-    "credit_utilization_ratio": {
-      "type": "integer",
-      "description": "Overall card/limit utilization percentage"
-    },
-    "total_outstanding": {
-      "type": "integer",
-      "description": "Total principal outstanding in rupees"
-    },
-    "dpd_buckets": {
-      "type": "string",
-      "description": "String representation of Days Past Due history"
-    },
-    "enquiry_history": {
-      "type": "array",
-      "description": "Array of past enquiries"
-    },
-    "score_factors": {
-      "type": "array",
-      "description": "Array of strings explaining score drivers"
-    }
+    "experian_score": { "type": "integer", "description": "Score between 300 to 900" },
+    "score_band": { "type": "string", "description": "Risk band label" },
+    "active_loans": { "type": "integer", "description": "Number of active loan accounts" },
+    "overdue_accounts": { "type": "integer", "description": "Accounts currently overdue" },
+    "credit_utilization_ratio": { "type": "integer", "description": "Overall credit utilization percentage" },
+    "total_outstanding": { "type": "integer", "description": "Total outstanding debt in rupees" },
+    "dpd_buckets": { "type": "string", "description": "Days Past Due history string" },
+    "enquiry_history": { "type": "array", "description": "Past bureau enquiries" },
+    "score_factors": { "type": "array", "description": "Score driver explanations" }
   },
   "error_codes": {
     "400": "Validation failed on PAN or Mobile.",
@@ -148,10 +138,7 @@
     "500": "Experian core system error."
   },
   "timeout_ms": 10000,
-  "retry_policy": {
-    "max_retries": 3,
-    "backoff_strategy": "exponential"
-  },
+  "retry_policy": { "max_retries": 3, "backoff_strategy": "exponential" },
   "sandbox_base_url": "https://sandbox-api.experian.in",
   "fallback_adapter": "cibil"
 }

@@ -1,10 +1,28 @@
 {
   "adapter_name": "Stripe Payments",
   "category": "payment",
-  "description": "Create payment intents and process global payments through Stripe gateway.",
   "provider": "Stripe Inc.",
-  "base_url": "https://api.stripe.com",
+  "description": "Processes global online payments through Stripe's PaymentIntents API. Supports card payments, UPI, net banking, and international payment methods. Preferred for international-facing fintech platforms and SaaS products that need PCI-DSS compliant payment processing across multiple currencies. Includes 3DS2 authentication, Strong Customer Authentication (SCA), and Stripe Radar fraud detection. Used for collecting loan EMIs, processing service fees, and managing subscription-based billing.",
+  "use_cases": [
+    "International and multi-currency payment collection",
+    "EMI repayment via saved card mandate",
+    "Loan origination fee and processing fee collection",
+    "Subscription-based recurring billing for SaaS lending products",
+    "Payment link generation for remote payment collection",
+    "Refund processing on loan cancellations",
+    "3DS2-compliant card-on-file payments for repeat borrowers"
+  ],
+  "semantic_tags": [
+    "payment", "Stripe", "payment gateway", "international payment", "card payment",
+    "UPI", "PaymentIntent", "3DS2", "SCA", "PCI DSS", "EMI", "subscription billing",
+    "multi-currency", "online payment", "payment processing", "Stripe Radar",
+    "fraud prevention payment", "checkout", "saved card"
+  ],
+  "compliance_context": "PCI-DSS Level 1 certified. 3DS2 and SCA compliant for EU and RBI-mandated card authentication. Stripe processes under GDPR for EU customers.",
+  "typical_callers": "International fintech lenders, SaaS lending platforms, global banks, insurtech platforms collecting premiums in multiple currencies",
+  "auth_description": "API Key authentication. Stripe Secret Key passed as bearer token in Authorization header.",
   "auth_type": "api_key",
+  "base_url": "https://api.stripe.com",
   "credential_env_vars": [
     "STRIPE_SECRET_KEY",
     "STRIPE_WEBHOOK_SECRET"
@@ -25,7 +43,7 @@
       "status": "latest",
       "maturity_score": 9,
       "deprecated": false,
-      "release_notes": "Latest release with Adaptive Pricing and enhanced Radar rules",
+      "release_notes": "Adaptive Pricing and enhanced Radar rules",
       "sunset_date": null
     }
   ],
@@ -33,31 +51,31 @@
     {
       "field_name": "amount",
       "type": "integer",
-      "description": "Payment amount in smallest currency unit (e.g. paise for INR)",
+      "description": "Payment amount in smallest currency unit (paise for INR, cents for USD)",
       "validation": "Positive integer, min 50"
     },
     {
       "field_name": "currency",
       "type": "enum",
-      "description": "Currency abbreviation",
+      "description": "Three-letter ISO currency code",
       "validation": "Enum: inr/usd/eur"
     },
     {
       "field_name": "customer_id",
       "type": "string",
-      "description": "Stripe Customer ID",
+      "description": "Stripe Customer ID for associating the payment",
       "validation": "Must start with cus_"
     },
     {
       "field_name": "payment_method",
       "type": "string",
-      "description": "Stripe PaymentMethod ID",
+      "description": "Stripe PaymentMethod ID to charge",
       "validation": "Must start with pm_"
     },
     {
       "field_name": "confirm",
       "type": "boolean",
-      "description": "Whether to confirm the PaymentIntent immediately",
+      "description": "Whether to confirm and capture the PaymentIntent immediately",
       "validation": "true or false"
     }
   ],
@@ -65,79 +83,46 @@
     {
       "field_name": "description",
       "type": "string",
-      "description": "Description of the payment",
+      "description": "Human-readable description of the payment",
       "default_value": "Payment for services"
     },
     {
       "field_name": "metadata",
       "type": "object",
-      "description": "Key-value pairs for tenant/loan tagging",
+      "description": "Key-value pairs for loan or tenant tagging",
       "default_value": "{}"
     },
     {
       "field_name": "receipt_email",
       "type": "string",
-      "description": "Email to send payment receipt",
+      "description": "Email to send Stripe-hosted payment receipt",
       "default_value": "null"
     },
     {
       "field_name": "setup_future_usage",
       "type": "enum",
-      "description": "Save method for future EMI mandates",
+      "description": "Save payment method for future EMI mandate charges",
       "default_value": "null"
     }
   ],
   "response_schema": {
-    "payment_intent_id": {
-      "type": "string",
-      "description": "Unique Stripe PaymentIntent ID (pi_xxx)"
-    },
-    "status": {
-      "type": "enum",
-      "description": "Enum: requires_payment_method/requires_action/processing/succeeded/canceled"
-    },
-    "amount_received": {
-      "type": "integer",
-      "description": "Amount actually captured in smallest currency unit"
-    },
-    "charge_id": {
-      "type": "string",
-      "description": "Underlying Charge ID (ch_xxx) once captured"
-    },
-    "payment_method_type": {
-      "type": "string",
-      "description": "Type of payment method used: card/upi/netbanking"
-    },
-    "next_action": {
-      "type": "object",
-      "description": "3DS2 redirect or OTP challenge instructions if required"
-    },
-    "receipt_url": {
-      "type": "string",
-      "description": "Hosted URL of Stripe-generated payment receipt"
-    },
-    "livemode": {
-      "type": "boolean",
-      "description": "True if live transaction, false for sandbox"
-    },
-    "created": {
-      "type": "integer",
-      "description": "Unix epoch timestamp of PaymentIntent creation"
-    }
+    "payment_intent_id": { "type": "string", "description": "Stripe PaymentIntent ID (pi_xxx)" },
+    "status": { "type": "enum", "description": "requires_payment_method/requires_action/succeeded/canceled" },
+    "amount_received": { "type": "integer", "description": "Amount captured in smallest unit" },
+    "charge_id": { "type": "string", "description": "Underlying Charge ID (ch_xxx)" },
+    "next_action": { "type": "object", "description": "3DS2 redirect or OTP challenge if needed" },
+    "receipt_url": { "type": "string", "description": "Stripe-hosted payment receipt URL" }
   },
   "error_codes": {
-    "400": "Malformed request or missing required fields.",
-    "401": "Invalid or missing Stripe Secret Key.",
-    "402": "Payment declined by issuing bank.",
+    "400": "Malformed request or missing fields.",
+    "401": "Invalid Stripe Secret Key.",
+    "402": "Payment declined by bank.",
     "404": "PaymentIntent or Customer not found.",
     "429": "Stripe rate limit exceeded.",
-    "500": "Stripe internal server error."
+    "500": "Stripe internal error."
   },
   "timeout_ms": 30000,
-  "retry_policy": {
-    "max_retries": 3,
-    "backoff_strategy": "exponential"
-  },
+  "retry_policy": { "max_retries": 3, "backoff_strategy": "exponential" },
   "sandbox_base_url": "https://api.stripe.com",
   "fallback_adapter": "razorpay"
 }

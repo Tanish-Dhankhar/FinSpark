@@ -1,14 +1,22 @@
 {
   "hook_name": "field_encryption_hook",
   "hook_type": "pre-call",
-  "description": "Applies AES-256 encryption to all marked fields before sending payload over network.",
-  "trigger_condition": "Before payload leaves instance if adapter needs encryption",
-  "applicable_adapters": [
-    "cibil",
-    "experian",
-    "karza",
-    "digilocker"
+  "description": "Encrypts all PII and sensitive fields in the outbound adapter payload using AES-256-GCM before transmitting over the network. Automatically applied to adapters that process identity data such as Aadhaar numbers, PAN cards, date of birth, and account numbers. Ensures that even if the TLS layer is compromised, payload data remains protected. The plaintext is never transmitted if encryption fails — the call is aborted. Required for DPDP Act 2023 compliance and RBI data-in-transit security standards for sensitive personal and financial data.",
+  "use_cases": [
+    "Encrypting Aadhaar number before sending to Karza or DigiLocker",
+    "Protecting PAN card and date of birth in bureau API payloads",
+    "Field-level encryption for DPDP Act 2023 compliance",
+    "Securing bank account numbers in penny drop requests",
+    "Data-in-transit protection for identity and credit bureau adapters"
   ],
+  "semantic_tags": [
+    "encryption", "AES-256", "PII protection", "data-in-transit", "field encryption",
+    "DPDP Act", "data security", "Aadhaar masking", "PAN encryption",
+    "payload security", "sensitive data", "pre-call encryption", "GCM"
+  ],
+  "when_to_use": "Attach to all adapters that transmit PII (Aadhaar, PAN, DOB, bank account). Mandatory for KYC, bureau, and banking adapters.",
+  "trigger_condition": "Before payload leaves the instance for adapters that require field-level encryption",
+  "applicable_adapters": ["cibil", "experian", "karza", "digilocker", "Aarogya_Health_API"],
   "lifecycle_state": "active",
   "execution_order": 5,
   "is_blocking": true,
@@ -23,48 +31,35 @@
       "param_name": "outbound_payload",
       "type": "object",
       "required": true,
-      "description": "Validated output JSON",
+      "description": "Validated adapter payload before encryption",
       "default_value": "{}"
     },
     {
       "param_name": "fields_to_encrypt",
       "type": "object",
       "required": true,
-      "description": "List extracted from transformation rules",
+      "description": "List of field names to encrypt (from transformation rules)",
       "default_value": "[]"
     },
     {
       "param_name": "encryption_algorithm",
       "type": "string",
       "required": true,
-      "description": "AES-256 etc",
+      "description": "Encryption algorithm to apply",
       "default_value": "AES-256-GCM"
     }
   ],
   "output": {
-    "on_success": "encrypted_payload with encrypted fields replaced",
-    "on_failure": "call aborted, HOOK_001 logged, plaintext never sent"
+    "on_success": "Encrypted payload with sensitive fields replaced by ciphertext",
+    "on_failure": "Call aborted; plaintext never transmitted; HOOK_001 logged"
   },
   "timeout_ms": 1000,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
-  "credential_env_vars": [
-    "CLIENT_ENCRYPTION_KEY"
-  ],
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
+  "credential_env_vars": ["CLIENT_ENCRYPTION_KEY"],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Encryption fault: Client encryption key empty or invalid.",
-    "HOOK_002": "Algorithm mismatch exception during block cipher.",
-    "HOOK_003": "Attempted to encrypt non-string leaf node structure."
-  },
-  "example_log_entry": {
-    "hook_name": "field_encryption_hook",
-    "triggered_at": "2026-04-02T10:30:28Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "karza",
-    "result": "SUCCESS - Encrypted 2 PII fields locally."
+    "HOOK_001": "Encryption key empty or invalid.",
+    "HOOK_002": "Algorithm mismatch during block cipher.",
+    "HOOK_003": "Attempted to encrypt non-string field."
   }
 }

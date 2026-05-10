@@ -1,10 +1,28 @@
 {
   "adapter_name": "Razorpay Payments",
   "category": "payment",
-  "description": "Create orders and process payments through Razorpay gateway.",
   "provider": "Razorpay Software Pvt Ltd",
-  "base_url": "https://api.razorpay.com",
+  "description": "Processes online payments through the Razorpay payment gateway for Indian merchants. Supports UPI, credit/debit cards, net banking, and wallet transactions. Used by lending platforms to collect EMI repayments, disbursal fee collections, and one-time loan origination charges. Provides real-time payment status, refund management, and webhook delivery for payment confirmation events.",
+  "use_cases": [
+    "EMI repayment collection from borrowers",
+    "Loan origination fee or processing fee collection",
+    "One-time payment for service activation",
+    "Refund issuance to borrowers on cancellations",
+    "Payment link generation for customer-initiated payments",
+    "Subscription and recurring mandate setup",
+    "Bulk disbursal payment collection reconciliation"
+  ],
+  "semantic_tags": [
+    "payment", "payment gateway", "Razorpay", "UPI", "card payment", "net banking",
+    "EMI collection", "loan repayment", "transaction", "refund", "payment processing",
+    "digital payment", "payout", "merchant payment", "checkout", "online payment",
+    "INR payment", "India payment gateway"
+  ],
+  "compliance_context": "Compliant with RBI Payment Aggregator guidelines 2020. PCI-DSS Level 1 certified. Two-factor authentication mandated for card transactions per RBI directive.",
+  "typical_callers": "Fintech lending apps, e-commerce platforms, SaaS subscription platforms, digital banks, insurance platforms collecting premiums",
+  "auth_description": "Basic authentication using Razorpay Key ID and Key Secret passed as username:password in base64-encoded Authorization header.",
   "auth_type": "basic_auth",
+  "base_url": "https://api.razorpay.com",
   "credential_env_vars": [
     "RAZORPAY_KEY_ID",
     "RAZORPAY_KEY_SECRET"
@@ -25,7 +43,7 @@
       "status": "beta",
       "maturity_score": 6,
       "deprecated": false,
-      "release_notes": "Beta optimized routing endpoint",
+      "release_notes": "Beta optimized routing",
       "sunset_date": null
     }
   ],
@@ -33,31 +51,31 @@
     {
       "field_name": "order_amount",
       "type": "integer",
-      "description": "Order transaction amount in paise (1 INR = 100 paise)",
+      "description": "Payment amount in paise (1 INR = 100 paise)",
       "validation": "Positive integer"
     },
     {
       "field_name": "currency",
       "type": "enum",
-      "description": "Currency abbreviation",
+      "description": "Currency code for the transaction",
       "validation": "Enum: INR/USD"
     },
     {
       "field_name": "customer_id",
       "type": "string",
-      "description": "ID of the customer",
+      "description": "Unique customer identifier in the merchant system",
       "validation": "Alphanumeric string"
     },
     {
       "field_name": "order_id",
       "type": "string",
-      "description": "Unique order ID from internal system",
+      "description": "Unique order reference from the internal system",
       "validation": "Alphanumeric up to 40 chars"
     },
     {
       "field_name": "payment_method",
       "type": "enum",
-      "description": "Payment instrument utilized",
+      "description": "Payment instrument to be used",
       "validation": "Enum: upi/card/netbanking/wallet"
     }
   ],
@@ -65,69 +83,37 @@
     {
       "field_name": "description",
       "type": "string",
-      "description": "Description of the payment",
+      "description": "Human-readable description of the payment",
       "default_value": "Payment for services"
     },
     {
       "field_name": "receipt",
       "type": "string",
-      "description": "Receipt reference",
+      "description": "Internal receipt reference for reconciliation",
       "default_value": "null"
     },
     {
       "field_name": "notes",
       "type": "string",
-      "description": "JSON notes object stringified",
+      "description": "Key-value notes for internal tagging",
       "default_value": "{}"
     },
     {
       "field_name": "callback_url",
       "type": "string",
-      "description": "URL to redirect/webhook after payment",
+      "description": "Webhook URL to receive payment status events",
       "default_value": "null"
     }
   ],
   "response_schema": {
-    "payment_id": {
-      "type": "string",
-      "description": "Unique Razorpay payment ID"
-    },
-    "order_id": {
-      "type": "string",
-      "description": "Associated razorpay order id"
-    },
-    "status": {
-      "type": "enum",
-      "description": "Enum: created/authorized/captured/failed"
-    },
-    "method": {
-      "type": "string",
-      "description": "Payment method captured"
-    },
-    "amount_paid": {
-      "type": "integer",
-      "description": "Actual amount paid in paise"
-    },
-    "fee": {
-      "type": "integer",
-      "description": "Razorpay fee in paise"
-    },
-    "tax": {
-      "type": "integer",
-      "description": "Tax on fee in paise"
-    },
-    "upi_transaction_ref": {
-      "type": "string",
-      "description": "RRN if UPI"
-    },
-    "bank_reference": {
-      "type": "string",
-      "description": "Bank specific reference number"
-    },
-    "captured_at": {
-      "type": "integer",
-      "description": "Unix epoch timestamp"
-    }
+    "payment_id": { "type": "string", "description": "Unique Razorpay payment ID" },
+    "order_id": { "type": "string", "description": "Associated Razorpay order ID" },
+    "status": { "type": "enum", "description": "created/authorized/captured/failed" },
+    "method": { "type": "string", "description": "Payment method captured" },
+    "amount_paid": { "type": "integer", "description": "Amount paid in paise" },
+    "fee": { "type": "integer", "description": "Razorpay processing fee in paise" },
+    "upi_transaction_ref": { "type": "string", "description": "UPI RRN reference number" },
+    "captured_at": { "type": "integer", "description": "Unix epoch timestamp of capture" }
   },
   "error_codes": {
     "400": "Bad request on amount or currency.",
@@ -137,10 +123,7 @@
     "500": "Razorpay internal upstream failure."
   },
   "timeout_ms": 5000,
-  "retry_policy": {
-    "max_retries": 1,
-    "backoff_strategy": "fixed"
-  },
+  "retry_policy": { "max_retries": 1, "backoff_strategy": "fixed" },
   "sandbox_base_url": "https://api.razorpay.com/sandbox",
   "fallback_adapter": null
 }

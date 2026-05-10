@@ -19,8 +19,8 @@
       "path": "field_encryption_hook.json"
     },
     {
-      "id": "datadog_logging",
-      "name": "Datadog Request Logging",
+      "id": "logging_hook",
+      "name": "Logging Hook",
       "type": "post_call",
       "path": "logging_hook.json"
     },

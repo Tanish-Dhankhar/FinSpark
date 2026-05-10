@@ -1,10 +1,29 @@
 {
   "adapter_name": "Perfios Account Aggregator",
   "category": "banking",
-  "description": "Bank account aggregation and bank statement reading.",
   "provider": "Perfios Account Aggregation Pvt Ltd",
-  "base_url": "https://api.perfios.com",
+  "description": "Aggregates and analyzes bank account statements to extract financial health metrics for individual borrowers and businesses. Fetches transaction history directly from banks via the RBI Account Aggregator (AA) framework with customer consent, or via bank statement PDF parsing. Provides income estimation, average balance, bounce rate, EMI obligation detection, and spending category breakdown. Widely used in digital lending for bank statement analysis and income proof verification without requiring physical document uploads.",
+  "use_cases": [
+    "Bank statement analysis for income verification",
+    "Monthly salary and income estimation for loan eligibility",
+    "EMI obligation detection to assess existing debt burden",
+    "Average monthly balance check for creditworthiness",
+    "Bounce rate analysis to detect financial stress",
+    "Cash flow assessment for MSME and business loans",
+    "Spending pattern analysis for affordability assessment",
+    "AA-framework-based consent-driven data pull"
+  ],
+  "semantic_tags": [
+    "bank statement", "account aggregator", "Perfios", "income verification", "salary detection",
+    "financial analysis", "cash flow", "EMI detection", "bounce rate", "bank transaction",
+    "RBI AA", "Account Aggregator", "FIP", "FIU", "balance analysis", "bank data",
+    "digital lending underwriting", "statement parsing", "net banking data"
+  ],
+  "compliance_context": "RBI Account Aggregator framework (Master Direction 2016). Explicit digital consent required. NBFC-AA licensed framework. Data minimization and purpose limitation apply.",
+  "typical_callers": "Digital lenders, NBFC underwriting teams, personal finance apps, MSME lending platforms, co-lending originators",
+  "auth_description": "OAuth2 client credentials flow. Client ID and secret used to obtain access token.",
   "auth_type": "oauth2",
+  "base_url": "https://api.perfios.com",
   "credential_env_vars": [
     "PERFIOS_CLIENT_ID",
     "PERFIOS_CLIENT_SECRET"
@@ -25,7 +44,7 @@
       "status": "beta",
       "maturity_score": 6,
       "deprecated": false,
-      "release_notes": "Live Account Aggregator FIP framework support",
+      "release_notes": "Live AA FIP framework support",
       "sunset_date": null
     }
   ],
@@ -33,37 +52,37 @@
     {
       "field_name": "account_number",
       "type": "string",
-      "description": "Customer bank account number",
+      "description": "Borrower's bank account number",
       "validation": "numeric max 18 chars"
     },
     {
       "field_name": "ifsc_code",
       "type": "string",
-      "description": "Bank branch IFSC",
+      "description": "Bank branch IFSC code",
       "validation": "11 char alphanumeric"
     },
     {
       "field_name": "customer_id",
       "type": "string",
-      "description": "Tracking customer ID in lending DB",
+      "description": "Lender's internal customer tracking ID",
       "validation": "string"
     },
     {
       "field_name": "date_range_from",
       "type": "date",
-      "description": "Pull data starting from this date",
+      "description": "Start date of statement analysis period",
       "validation": "ISO 8601 date"
     },
     {
       "field_name": "date_range_to",
       "type": "date",
-      "description": "Pull data ending at this date",
+      "description": "End date of statement analysis period",
       "validation": "ISO 8601 date"
     },
     {
       "field_name": "consent_artifact",
       "type": "string",
-      "description": "RBI AA consent JWT payload",
+      "description": "RBI AA signed consent JWT token",
       "validation": "JWT string"
     }
   ],
@@ -71,78 +90,35 @@
     {
       "field_name": "include_categorization",
       "type": "boolean",
-      "description": "Perform ML category tagging on transactions",
+      "description": "Run ML category tagging on each transaction",
       "default_value": "true"
     },
     {
       "field_name": "include_salary_detection",
       "type": "boolean",
-      "description": "Detect probability of salary credits",
+      "description": "Detect salary credit patterns automatically",
       "default_value": "true"
     }
   ],
   "response_schema": {
-    "avg_monthly_balance": {
-      "type": "integer",
-      "description": "Average collected balance over the period"
-    },
-    "min_balance": {
-      "type": "integer",
-      "description": "Lowest recorded balance in period"
-    },
-    "max_balance": {
-      "type": "integer",
-      "description": "Highest recorded balance in period"
-    },
-    "transaction_count": {
-      "type": "integer",
-      "description": "Total number of transactions"
-    },
-    "total_credits": {
-      "type": "integer",
-      "description": "Sum of all incoming money"
-    },
-    "total_debits": {
-      "type": "integer",
-      "description": "Sum of all outgoing money"
-    },
-    "salary_credits_detected": {
-      "type": "boolean",
-      "description": "True if a consistent salary pattern was found"
-    },
-    "estimated_monthly_salary": {
-      "type": "integer",
-      "description": "Deduced recurring salary payment"
-    },
-    "transaction_categories": {
-      "type": "array",
-      "description": "List of distinct spending categories matched"
-    },
-    "emi_payments_detected": {
-      "type": "array",
-      "description": "List of automated debits matching loan companies"
-    },
-    "bounce_count": {
-      "type": "integer",
-      "description": "Number of inward or outward clearing returns"
-    },
-    "account_vintage_months": {
-      "type": "integer",
-      "description": "Age of the account derived from statements"
-    }
+    "avg_monthly_balance": { "type": "integer", "description": "Average balance over the period" },
+    "total_credits": { "type": "integer", "description": "Sum of all inbound money" },
+    "total_debits": { "type": "integer", "description": "Sum of all outbound money" },
+    "salary_credits_detected": { "type": "boolean", "description": "Consistent salary found" },
+    "estimated_monthly_salary": { "type": "integer", "description": "Deduced salary amount" },
+    "bounce_count": { "type": "integer", "description": "Number of bounce/return transactions" },
+    "emi_payments_detected": { "type": "array", "description": "Detected EMI debits" },
+    "transaction_categories": { "type": "array", "description": "Spending category breakdown" }
   },
   "error_codes": {
     "400": "Invalid date range or malformed consent artifact.",
     "401": "Invalid OAuth credentials.",
     "403": "Consent artifact expired.",
-    "422": "FIP rejection, bank system unavailable temporarily.",
+    "422": "FIP rejection - bank temporarily unavailable.",
     "500": "Perfios internal rendering error."
   },
   "timeout_ms": 10000,
-  "retry_policy": {
-    "max_retries": 1,
-    "backoff_strategy": "exponential"
-  },
+  "retry_policy": { "max_retries": 1, "backoff_strategy": "exponential" },
   "sandbox_base_url": "https://sandbox-api.perfios.com",
   "fallback_adapter": null
 }

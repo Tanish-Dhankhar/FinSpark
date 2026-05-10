@@ -1,11 +1,22 @@
 {
   "hook_name": "simulation_intercept_hook",
   "hook_type": "pre-call",
-  "description": "Intercepts outbound calls during simulation and returns static mock data from disk.",
-  "trigger_condition": "Right before hitting network IF pipeline is in Simulation Phase",
-  "applicable_adapters": [
-    "*"
+  "description": "Intercepts outbound adapter API calls during the simulation phase and returns pre-recorded static mock responses from disk instead of making real network calls. Enables full end-to-end pipeline testing without requiring live API credentials or incurring API quota costs. Reads mock JSON files keyed by adapter name and version from the backend mock library. Used during Stage 7 (Simulation) to validate the integration config, hooks, and transformation rules in a safe, cost-free environment before live deployment.",
+  "use_cases": [
+    "Simulating CIBIL bureau response without real PAN lookup",
+    "Testing integration pipeline end-to-end without API credentials",
+    "Validating config and transformation rules using mock data",
+    "Running regression tests against fixed mock responses",
+    "Cost-free pipeline validation before production go-live"
   ],
+  "semantic_tags": [
+    "simulation", "mock response", "sandbox intercept", "pre-call",
+    "test mode", "dry run", "API mock", "pipeline testing",
+    "mock data", "offline testing", "integration testing", "stage 7"
+  ],
+  "when_to_use": "Active only during simulation phase (Stage 7). Intercepts all adapter calls and returns mocks. Must be disabled or bypassed in production.",
+  "trigger_condition": "Right before network call, only when pipeline is in simulation mode",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 6,
   "is_blocking": true,
@@ -20,53 +31,42 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Requested adapter",
+      "description": "Adapter whose call is being intercepted",
       "default_value": ""
     },
     {
       "param_name": "adapter_version",
       "type": "string",
       "required": true,
-      "description": "Requested Version",
+      "description": "Adapter version for mock file selection",
       "default_value": ""
     },
     {
       "param_name": "simulation_mode",
       "type": "boolean",
       "required": true,
-      "description": "Flag driving sandbox",
+      "description": "Flag indicating simulation mode is active",
       "default_value": "true"
     },
     {
       "param_name": "mock_library_path",
       "type": "string",
       "required": true,
-      "description": "Local path for JSON dumps",
+      "description": "Filesystem path to mock JSON directory",
       "default_value": "/backend/data/mocks"
     }
   ],
   "output": {
-    "on_success": "mock_response loaded and returned as if real, simulation_mode: true attached",
-    "on_failure": "mock file not found error, adapter marked as SIMULATION_FAILED in report"
+    "on_success": "Mock response loaded and returned as if real; simulation_mode: true attached",
+    "on_failure": "Mock file not found; adapter marked SIMULATION_FAILED in report"
   },
   "timeout_ms": 100,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
     "HOOK_001": "Mock payload file missing on disk.",
     "HOOK_002": "Mock payload JSON parsing error.",
-    "HOOK_003": "Path traversal attempt blocked in mock resolution."
-  },
-  "example_log_entry": {
-    "hook_name": "simulation_intercept_hook",
-    "triggered_at": "2026-04-02T10:30:29Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "razorpay",
-    "result": "SUCCESS - Simulated 200 OK from mocks/razorpay/v1_success.json."
+    "HOOK_003": "Path traversal attempt blocked."
   }
 }

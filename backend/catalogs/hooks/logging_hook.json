@@ -1,16 +1,72 @@
 {
-    "id": "datadog_logging",
-    "type": "post_call",
-    "trigger_conditions": ["success", "failure"],
-    "target_endpoint": "https://http-intake.logs.datadoghq.com/v1/input",
-    "required_headers": {
-        "DD-API-KEY": "$DATADOG_API_KEY"
+  "hook_name": "logging_hook",
+  "hook_type": "post_call",
+  "description": "Ships structured API call logs to an external observability platform (Datadog by default) after every adapter call, whether it succeeds or fails. Captures client ID, adapter name, HTTP response status, and call latency in milliseconds. Used by platform engineering and SRE teams for real-time monitoring, alerting on high error rates, and latency dashboards. Complements audit_emit_hook which writes compliance logs locally — this hook pushes operational telemetry to a centralized log aggregation system.",
+  "use_cases": [
+    "Real-time adapter call monitoring on Datadog",
+    "Latency tracking and SLA breach alerting",
+    "Error rate dashboards for adapter reliability",
+    "Debugging pipeline failures with structured log search",
+    "SRE on-call alerting for high failure rates"
+  ],
+  "semantic_tags": [
+    "logging", "observability", "Datadog", "telemetry", "monitoring",
+    "latency tracking", "error rate", "SRE", "structured log",
+    "API logging", "log shipping", "post call hook"
+  ],
+  "when_to_use": "Attach to all adapters in production environments where centralized log aggregation is required. Particularly important for high-volume adapters like Twilio, Razorpay, and bureau APIs.",
+  "id": "datadog_logging",
+  "trigger_condition": "After every adapter call (both success and failure)",
+  "applicable_adapters": ["*"],
+  "lifecycle_state": "active",
+  "execution_order": 4,
+  "is_blocking": false,
+  "target_endpoint": "https://http-intake.logs.datadoghq.com/v1/input",
+  "required_headers": {
+    "DD-API-KEY": "$DATADOG_API_KEY"
+  },
+  "payload_template": {
+    "client_id": "{{client_id}}",
+    "adapter": "{{adapter_name}}",
+    "status": "{{response_status}}",
+    "latency_ms": "{{latency}}"
+  },
+  "input_parameters": [
+    {
+      "param_name": "client_id",
+      "type": "string",
+      "required": true,
+      "description": "Client workspace ID for log namespace segmentation",
+      "default_value": ""
     },
-    "payload_template": {
-        "client_id": "{{client_id}}",
-        "adapter": "{{adapter_name}}",
-        "status": "{{response_status}}",
-        "latency_ms": "{{latency}}"
+    {
+      "param_name": "adapter_name",
+      "type": "string",
+      "required": true,
+      "description": "Name of the adapter that was called",
+      "default_value": ""
     },
-    "timeout_ms": 1000
+    {
+      "param_name": "response_status",
+      "type": "integer",
+      "required": true,
+      "description": "HTTP status code returned by the adapter",
+      "default_value": "200"
+    },
+    {
+      "param_name": "latency",
+      "type": "integer",
+      "required": true,
+      "description": "Round-trip call duration in milliseconds",
+      "default_value": "0"
+    }
+  ],
+  "output": {
+    "on_success": "Log entry shipped to Datadog",
+    "on_failure": "Log shipping error is non-fatal; pipeline continues"
+  },
+  "timeout_ms": 1000,
+  "retry_policy": { "max_retries": 1, "backoff_strategy": "fixed" },
+  "credential_env_vars": ["DATADOG_API_KEY"],
+  "audit_on_trigger": false
 }

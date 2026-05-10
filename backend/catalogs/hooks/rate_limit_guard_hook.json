@@ -1,11 +1,22 @@
 {
   "hook_name": "rate_limit_guard_hook",
   "hook_type": "pre-call",
-  "description": "Tracks call frequency using in-memory counter to prevent quota exhaustion.",
-  "trigger_condition": "Before hitting the network for adapter call",
-  "applicable_adapters": [
-    "*"
+  "description": "Tracks adapter call frequency using an in-memory sliding window counter to prevent quota exhaustion and upstream API rate limit (429) errors before they occur. Compares the current calls-per-second or calls-per-minute against the adapter's contract limit from the catalog. If the limit is approached, the hook introduces a calculated delay rather than allowing the call to proceed and fail. Especially important for government APIs (GSTN, CIBIL) with strict TPS contracts and for Twilio and Razorpay which impose per-account rate limits that incur penalties.",
+  "use_cases": [
+    "Preventing 429 rate limit errors on GSTN before they occur",
+    "Throttling CIBIL bureau calls to stay within TPS contract",
+    "Proactive delay injection for Twilio SMS bursts",
+    "Protecting Razorpay payment API quota in high-volume processing",
+    "Multi-tenant rate isolation to prevent one client from exhausting quota"
   ],
+  "semantic_tags": [
+    "rate limit", "throttle", "TPS", "quota guard", "pre-call",
+    "429 prevention", "sliding window", "traffic shaping", "API quota",
+    "rate control", "call frequency", "burst protection"
+  ],
+  "when_to_use": "Attach to all adapters with TPS or RPM rate limits — especially GSTN, CIBIL, Experian, Twilio, and Razorpay. Critical in high-volume batch or concurrent processing scenarios.",
+  "trigger_condition": "Before the outbound network call is made to the adapter",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 3,
   "is_blocking": true,
@@ -20,60 +31,49 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Target Adapter",
+      "description": "Target adapter being rate-guarded",
       "default_value": ""
     },
     {
       "param_name": "client_id",
       "type": "string",
       "required": true,
-      "description": "Client performing operation",
+      "description": "Client making the call (for per-client rate tracking)",
       "default_value": ""
     },
     {
       "param_name": "calls_in_window",
       "type": "integer",
       "required": true,
-      "description": "Current traffic in scope",
+      "description": "Current call count in the rate window",
       "default_value": "0"
     },
     {
       "param_name": "window_duration_ms",
       "type": "integer",
       "required": true,
-      "description": "Bucket scale",
+      "description": "Rate window duration in milliseconds",
       "default_value": "1000"
     },
     {
       "param_name": "max_calls_per_window",
       "type": "integer",
       "required": true,
-      "description": "Max TPS/RPM from catalog",
+      "description": "Maximum allowed calls per window from catalog contract",
       "default_value": "10"
     }
   ],
   "output": {
-    "on_success": "call allowed, current_rate attached to request context",
-    "on_failure": "call delayed by calculated wait_ms, rate_limit_warning emitted"
+    "on_success": "Call allowed; current_rate attached to request context",
+    "on_failure": "Call delayed by calculated wait_ms; rate_limit_warning emitted"
   },
   "timeout_ms": 200,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
     "HOOK_001": "Rate tracker sync token lost.",
     "HOOK_002": "Throttling wait exceeded max pipeline drift.",
-    "HOOK_003": "Extreme quota overrun, blocking further requests entirely."
-  },
-  "example_log_entry": {
-    "hook_name": "rate_limit_guard_hook",
-    "triggered_at": "2026-04-02T10:30:27Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "perfios",
-    "result": "SUCCESS - Call frequency 2/sec allowed against 10/sec limit."
+    "HOOK_003": "Extreme quota overrun — blocking further requests."
   }
 }

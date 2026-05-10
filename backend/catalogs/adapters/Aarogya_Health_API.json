@@ -1,21 +1,31 @@
 {
   "adapter_name": "Aarogya Health API",
   "category": "health_records",
-  "description": "Retrieve patient health record summary and procedure verification via the Aarogya Digital Health platform, operated under the National Digital Health Mission (NDHM) framework. Verifies declared medical procedures against ABHA-linked health records and retrieves estimated procedure cost for loan underwriting.",
   "provider": "Aarogya Digital Health Pvt. Ltd.",
+  "description": "Retrieves patient health records and verifies declared medical procedures via the Aarogya Digital Health platform, operating under the National Digital Health Mission (NDHM) framework. Used in healthcare lending to verify that a loan applicant's declared medical procedure is recorded in their ABHA-linked health record and that the procedure cost estimate aligns with the requested loan amount. Requires explicit patient consent via an ABHA-linked OAuth consent token. Health data must not be persisted beyond the underwriting decision.",
+  "use_cases": [
+    "Medical loan underwriting — verify declared procedure against ABHA health record",
+    "Cross-verifying hospital quote against NDHM procedure cost estimate",
+    "Confirming empanelled hospital registration for healthcare loan eligibility",
+    "Detecting inflated loan amounts by comparing against procedure cost estimate",
+    "Health record-based identity verification for medical finance",
+    "Routing unverifiable health claims to manual medical review"
+  ],
+  "semantic_tags": [
+    "health records", "medical loan", "healthcare finance", "ABHA", "Ayushman Bharat",
+    "NDHM", "National Digital Health Mission", "patient record", "procedure verification",
+    "medical procedure", "hospital verification", "health lending", "healthcare KYC",
+    "DPDP Act", "health data", "empanelled hospital", "medical underwriting",
+    "health account", "Aarogya", "health consent"
+  ],
+  "compliance_context": "National Digital Health Mission (NDHM) framework. Digital Personal Data Protection Act 2023 (DPDP Act). Explicit ABHA-linked patient consent required with timestamp and IP. Health record data must be purged within 24 hours of underwriting decision. Aadhaar must be masked in all logs.",
+  "typical_callers": "Healthcare NBFCs, medical lending platforms, health insurance underwriters, hospital finance arms offering procedure-based loans",
+  "auth_description": "OAuth2 Authorization Code flow. ABHA-linked patient consent token required. Session-scoped — must not persist beyond the current loan application session.",
+  "auth_type": "oauth2_authorization_code",
   "ndhm_framework": true,
   "catalog_status": "NOT_IN_STANDARD_CATALOG",
-  "onboarding_note": "⚠️ This adapter is NOT present in the integration platform's standard adapter catalog. A custom adapter onboarding request must be raised and approved before this integration can be configured or activated. Do not proceed to configuration generation until onboarding is complete.",
+  "onboarding_note": "⚠️ This adapter requires custom onboarding approval before use.",
   "base_url": "https://api.aarogya.health.gov.in",
-  "auth_type": "oauth2_authorization_code",
-  "auth_details": {
-    "flow": "Authorization Code",
-    "scope": "patient:health_record:read patient:procedure:verify",
-    "token_binding": "ABHA-linked patient consent token; session-scoped only",
-    "token_persistence": "MUST NOT persist beyond the current loan application session",
-    "consent_requirement": "Explicit patient-level consent via ABHA-linked consent token must be obtained before API invocation",
-    "consent_capture_event": "Applicant clicks consent link sent via Twilio SMS notification at health verification step"
-  },
   "credential_env_vars": [
     "AAROGYA_CLIENT_ID",
     "AAROGYA_CLIENT_SECRET",
@@ -29,7 +39,7 @@
       "status": "deprecated",
       "maturity_score": 3,
       "deprecated": true,
-      "release_notes": "Initial release; limited procedure verification support; no cost estimate response field",
+      "release_notes": "Initial release; limited procedure verification; no cost estimate field",
       "sunset_date": "2024-12-31"
     },
     {
@@ -38,7 +48,7 @@
       "status": "stable",
       "maturity_score": 8,
       "deprecated": false,
-      "release_notes": "Added procedure cost estimate retrieval; improved ABHA-linked consent token flow; enhanced NDHM compliance; supports empanelled hospital procedure verification",
+      "release_notes": "Added procedure cost estimate; improved ABHA consent flow; NDHM compliant",
       "sunset_date": null
     }
   ],
@@ -46,152 +56,105 @@
     {
       "field_name": "abha_number",
       "type": "string",
-      "description": "14-digit Ayushman Bharat Health Account (ABHA) number — the patient's National Digital Health ID",
+      "description": "14-digit Ayushman Bharat Health Account (ABHA) number — patient's National Digital Health ID",
       "validation": "14 digit numeric"
     },
     {
       "field_name": "aadhaar_number",
       "type": "string",
-      "description": "12-digit Aadhaar number linked to the ABHA account; used for identity binding; must be masked in all storage contexts",
-      "validation": "12 digit numeric; mask in logs and audit records"
+      "description": "12-digit Aadhaar linked to the ABHA account; must be masked in all storage contexts",
+      "validation": "12 digit numeric; mask in logs"
     },
     {
       "field_name": "full_name",
       "type": "string",
-      "description": "Full legal name of the patient as per Aadhaar; used for record matching",
+      "description": "Patient full legal name as per Aadhaar for record matching",
       "validation": "min length 3"
     },
     {
       "field_name": "date_of_birth",
       "type": "date",
-      "description": "Date of birth of the patient",
+      "description": "Patient date of birth",
       "validation": "DD/MM/YYYY"
     },
     {
       "field_name": "declared_procedure_name",
       "type": "string",
-      "description": "Medical procedure name declared by the applicant in the loan application (e.g., knee replacement, cardiac bypass, IVF)",
+      "description": "Medical procedure declared by the loan applicant (e.g. knee replacement, IVF, cardiac bypass)",
       "validation": "min length 3; free text"
     },
     {
       "field_name": "empanelled_hospital_registration_number",
       "type": "string",
-      "description": "Registration number of the empanelled hospital declaring the procedure; used to verify procedure origin against CareFirst's empanelled network",
+      "description": "Registration number of the empanelled hospital declaring the procedure",
       "validation": "alphanumeric"
     },
     {
       "field_name": "loan_amount_requested",
       "type": "integer",
-      "description": "Loan amount requested by the applicant in INR; cross-verified against Aarogya procedure cost estimate",
-      "validation": "numeric; min 25000; max 1000000"
+      "description": "Loan amount in INR to cross-verify against procedure cost estimate",
+      "validation": "min 25000; max 1000000"
     },
     {
       "field_name": "consent_token",
       "type": "string",
-      "description": "ABHA-linked patient consent token obtained via OAuth 2.0 Authorization Code flow; authorises health record access for this application session",
-      "validation": "session-scoped JWT; must not persist beyond underwriting decision"
+      "description": "ABHA-linked OAuth consent token; session-scoped; must not persist beyond underwriting",
+      "validation": "JWT; session-scoped"
     }
   ],
   "optional_fields": [
     {
       "field_name": "hospital_quote_procedure_cost",
       "type": "integer",
-      "description": "Estimated procedure cost from the hospital quote submitted by the applicant; used alongside Aarogya cost estimate for cross-verification",
+      "description": "Hospital-quoted procedure cost for cross-verification with Aarogya estimate",
       "default_value": "0"
     },
     {
       "field_name": "consent_timestamp",
       "type": "datetime",
-      "description": "Timestamp at which patient health record consent was captured; stored with IP address for audit trail",
+      "description": "Timestamp of patient consent capture",
       "default_value": "current_timestamp"
     },
     {
       "field_name": "consent_ip_address",
       "type": "string",
-      "description": "IP address of the applicant device at time of consent capture",
+      "description": "IP address of applicant device at consent time",
       "default_value": "null"
     }
   ],
   "response_schema": {
-    "abha_record_found": {
-      "type": "boolean",
-      "description": "Indicates whether a health record linked to the provided ABHA number was found"
-    },
-    "health_record_summary": {
-      "type": "object",
-      "description": "Summary of the patient's ABHA-linked health record; not to be stored beyond underwriting decision"
-    },
-    "procedure_verified": {
-      "type": "boolean",
-      "description": "Indicates whether the declared procedure is recorded or referred in the patient's health record by an empanelled hospital"
-    },
-    "procedure_match_detail": {
-      "type": "string",
-      "description": "Description of the matched procedure entry in the health record, including referring facility and date"
-    },
-    "empanelled_hospital_verified": {
-      "type": "boolean",
-      "description": "Indicates whether the hospital that recorded or referred the procedure is in CareFirst's empanelled network"
-    },
-    "aarogya_procedure_cost_estimate": {
-      "type": "integer",
-      "description": "Estimated procedure cost in INR as retrieved from the Aarogya platform; used to cross-verify against the applicant's declared loan amount and hospital quote"
-    },
-    "cost_variance_flag": {
-      "type": "boolean",
-      "description": "True if the difference between the Aarogya cost estimate and the loan amount requested exceeds an acceptable threshold; triggers underwriting review"
-    },
-    "manual_review_required": {
-      "type": "boolean",
-      "description": "True if ABHA record is absent, procedure is unverifiable, or hospital is not in the empanelled network; triggers Manual Medical Review queue routing"
-    },
-    "manual_review_reason": {
-      "type": "string",
-      "description": "Human-readable reason for manual review flag; e.g., 'No ABHA-linked health record found' or 'Declared procedure not verifiable from health record'"
-    }
+    "abha_record_found": { "type": "boolean", "description": "Health record found for ABHA number" },
+    "procedure_verified": { "type": "boolean", "description": "Declared procedure in health record" },
+    "empanelled_hospital_verified": { "type": "boolean", "description": "Hospital in empanelled network" },
+    "aarogya_procedure_cost_estimate": { "type": "integer", "description": "Procedure cost from Aarogya (INR)" },
+    "cost_variance_flag": { "type": "boolean", "description": "True if loan amount vs cost estimate exceeds threshold" },
+    "manual_review_required": { "type": "boolean", "description": "True if record absent or unverifiable" },
+    "manual_review_reason": { "type": "string", "description": "Reason for manual review routing" }
   },
   "error_codes": {
-    "400": "Validation failed — check ABHA number format or required field completeness.",
-    "401": "Invalid or expired OAuth 2.0 consent token; re-initiate patient consent flow.",
-    "403": "Patient consent not granted or consent token scope insufficient for requested record access.",
-    "404": "No ABHA-linked health record found for the provided ABHA number — route to Manual Medical Review.",
-    "408": "Request timeout — retry once after 60 seconds before routing to Manual Medical Review.",
-    "422": "Declared procedure could not be matched against health record — route to Manual Medical Review.",
-    "429": "Rate limit exceeded; back off and retry.",
-    "500": "Aarogya platform internal error — retry once after 60 seconds; if failure persists, route to Manual Medical Review."
+    "400": "Validation failed — check ABHA number format.",
+    "401": "Invalid or expired consent token.",
+    "403": "Consent not granted or insufficient scope.",
+    "404": "No ABHA-linked record found — route to Manual Review.",
+    "408": "Request timeout — retry after 60s.",
+    "422": "Procedure unverifiable — route to Manual Review.",
+    "429": "Rate limit exceeded.",
+    "500": "Aarogya internal error — retry once then Manual Review."
   },
   "timeout_ms": 15000,
   "retry_policy": {
     "max_retries": 1,
     "retry_delay_seconds": 60,
     "retry_on": ["408", "500", "503"],
-    "fallback_on_retry_exhaustion": "Route application to Manual Medical Review queue; do not block credit bureau step"
-  },
-  "workflow_position": {
-    "step": 3,
-    "must_run_after": ["karza_kyc_v2"],
-    "must_run_before": ["cibil_bureau_v3"],
-    "description": "Aarogya Health API must be called after successful KYC verification and before the CIBIL credit bureau pull is initiated"
+    "fallback_on_retry_exhaustion": "Route to Manual Medical Review queue"
   },
   "data_retention_policy": {
-    "health_record_data": "Must be purged within 24 hours of underwriting decision",
-    "consent_token": "Session-scoped; must not persist beyond the current loan application",
-    "storage_classification": "Sensitive health information under DPDP Act 2023",
-    "aadhaar_masking": "Aadhaar number must be masked in all logs, audit records, and non-KYC storage contexts"
-  },
-  "compliance": {
-    "framework": "National Digital Health Mission (NDHM)",
-    "data_act": "Digital Personal Data Protection Act 2023 (DPDP Act)",
-    "consent_type": "Explicit ABHA-linked patient consent; must be captured with timestamp and IP address before API invocation",
-    "tls_requirement": "TLS 1.2 or higher for all inter-service communication"
-  },
-  "sms_trigger": {
-    "provider": "twilio",
-    "event": "health_record_verification_initiated",
-    "description": "Send SMS to applicant when health record verification step is initiated; include consent link if ABHA consent not already granted",
-    "sender_id": "CRFRST"
+    "health_record_data": "Purge within 24 hours of underwriting decision",
+    "consent_token": "Session-scoped; must not persist beyond application",
+    "storage_classification": "Sensitive health data under DPDP Act 2023",
+    "aadhaar_masking": "Mask in all logs and audit records"
   },
   "sandbox_base_url": "https://sandbox.api.aarogya.health.gov.in",
   "fallback_adapter": null,
-  "fallback_behaviour": "Manual Medical Review queue — no automated fallback adapter available for health record verification"
+  "fallback_behaviour": "Manual Medical Review queue — no automated fallback"
 }

@@ -24,6 +24,8 @@ from backend.config import (
     CORS_ORIGINS, CLIENTS_DIR, ADAPTERS_CATALOG_DIR, HOOKS_CATALOG_DIR,
     ADAPTER_MASTER_INDEX, HOOK_MASTER_INDEX, SAMPLE_DOCS_DIR,
 )
+from backend.services import vector_service
+from backend.services.vector_service import build_embeddings_cache
 from backend.models import (
     CreateProjectRequest, ReviewRequest, ReviewAction,
     ProjectSummary, ProjectDetail, ReviewResponse,
@@ -43,10 +45,24 @@ from backend.pipeline.stage6_review import (
 
 # ── App Setup ───────────────────────────────────────────────────────────────
 
+@asynccontextmanager
+async def lifespan(app_):
+    """Startup: warm the vector embeddings cache. Shutdown: nothing special."""
+    print("[FinSpark] 🔥 Startup — warming vector embeddings cache...")
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None, build_embeddings_cache
+        )
+        print("[FinSpark] ✅ Embeddings cache ready.")
+    except Exception as exc:
+        print(f"[FinSpark] ⚠️  Embeddings cache warmup failed (non-fatal): {exc}")
+    yield  # Application runs here
+
 app = FastAPI(
     title="FinSpark — AI Integration Orchestration Engine",
     description="Transform requirement documents into production-ready integration configurations",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -412,9 +428,19 @@ async def simulate_detailed(client_id: str):
         raise HTTPException(status_code=404, detail="No config found")
 
     integrations = config.get("integrations", [])
-    adapter_index_path = Path(__file__).parent / "catalogs" / "adapters" / "master_index.json"
-    adapter_index = json.loads(adapter_index_path.read_text(encoding="utf-8")) if adapter_index_path.exists() else {"adapters": []}
-    adapter_versions = {a["id"]: a.get("versions", []) for a in adapter_index.get("adapters", [])}
+    # Scan adapter directory directly so version info is always up-to-date,
+    # regardless of whether master_index has been updated.
+    adapter_versions: dict = {}
+    for adapter_file in ADAPTERS_CATALOG_DIR.glob("*.json"):
+        if adapter_file.name in ("master_index.json", "embeddings_cache.json"):
+            continue
+        try:
+            adata = json.loads(adapter_file.read_text(encoding="utf-8"))
+            adapter_versions[adapter_file.stem] = [
+                v.get("version", "v1") for v in adata.get("versions", [])
+            ]
+        except Exception:
+            pass
 
     all_results = []
 
@@ -707,7 +733,7 @@ async def migrate_version(client_id: str, req: MigrateRequest):
     if not config:
         raise HTTPException(status_code=404, detail="No config found")
 
-    adapter_index_path = Path(__file__).parent / "catalogs" / "adapters" / "master_index.json"
+    adapter_index_path = ADAPTER_MASTER_INDEX
     adapter_index = json.loads(adapter_index_path.read_text(encoding="utf-8")) if adapter_index_path.exists() else {"adapters": []}
 
     # Find the integration
@@ -929,13 +955,18 @@ async def list_adapters():
 
 @app.get("/api/catalogs/adapters/{adapter_id}", tags=["Catalogs"])
 async def get_adapter_detail(adapter_id: str):
-    """Get full details for a specific adapter."""
+    """Get full details for a specific adapter by ID (file stem)."""
+    # Look up by file stem directly — works for all adapters including
+    # those not yet registered in master_index (e.g. newly dropped files).
+    adapter_path = ADAPTERS_CATALOG_DIR / f"{adapter_id}.json"
+    if adapter_path.exists():
+        return _read_json(adapter_path)
+    # Fallback: try master_index path field (for adapters with non-stem IDs)
     index = _read_json(ADAPTER_MASTER_INDEX)
     for adapter in index.get("adapters", []):
         if adapter["id"] == adapter_id:
-            adapter_path = ADAPTERS_CATALOG_DIR / adapter["path"]
-            return _read_json(adapter_path)
-    raise HTTPException(status_code=404, detail=f"Adapter {adapter_id} not found")
+            return _read_json(ADAPTERS_CATALOG_DIR / adapter["path"])
+    raise HTTPException(status_code=404, detail=f"Adapter '{adapter_id}' not found")
 
 
 @app.get("/api/catalogs/hooks", tags=["Catalogs"])
@@ -946,13 +977,17 @@ async def list_hooks():
 
 @app.get("/api/catalogs/hooks/{hook_id}", tags=["Catalogs"])
 async def get_hook_detail(hook_id: str):
-    """Get full details for a specific hook."""
+    """Get full details for a specific hook by ID (file stem)."""
+    # Look up by file stem directly — canonical ID matches vector_service and stage3.
+    hook_path = HOOKS_CATALOG_DIR / f"{hook_id}.json"
+    if hook_path.exists():
+        return _read_json(hook_path)
+    # Fallback: try master_index path field (for legacy IDs like datadog_logging)
     index = _read_json(HOOK_MASTER_INDEX)
     for hook in index.get("hooks", []):
         if hook["id"] == hook_id:
-            hook_path = HOOKS_CATALOG_DIR / hook["path"]
-            return _read_json(hook_path)
-    raise HTTPException(status_code=404, detail=f"Hook {hook_id} not found")
+            return _read_json(HOOKS_CATALOG_DIR / hook["path"])
+    raise HTTPException(status_code=404, detail=f"Hook '{hook_id}' not found")
 
 
 @app.post("/api/catalogs/adapters/upload", tags=["Catalogs"])
@@ -1003,7 +1038,19 @@ async def upload_adapter(file: UploadFile = File(...)):
     index["adapters"] = adapters_list
     ADAPTER_MASTER_INDEX.write_text(json.dumps(index, indent=2), encoding="utf-8")
 
-    return {"status": "ok", "adapter_id": adapter_id, "message": f"Adapter '{adapter_data.get('adapter_name', adapter_id)}' uploaded successfully"}
+    # Trigger incremental embedding rebuild for the new/updated adapter
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, build_embeddings_cache)
+        embed_msg = "Embeddings cache updated."
+    except Exception as exc:
+        embed_msg = f"Embeddings cache update failed (non-fatal): {exc}"
+
+    return {
+        "status": "ok",
+        "adapter_id": adapter_id,
+        "message": f"Adapter '{adapter_data.get('adapter_name', adapter_id)}' uploaded successfully",
+        "embeddings": embed_msg,
+    }
 
 
 @app.post("/api/catalogs/hooks/upload", tags=["Catalogs"])
@@ -1047,14 +1094,44 @@ async def upload_hook(file: UploadFile = File(...)):
     index["hooks"] = hooks_list
     HOOK_MASTER_INDEX.write_text(json.dumps(index, indent=2), encoding="utf-8")
 
-    return {"status": "ok", "hook_id": hook_id, "message": f"Hook '{hook_data.get('hook_name', hook_id)}' uploaded successfully"}
+    # Trigger incremental embedding rebuild for the new/updated hook
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, build_embeddings_cache)
+        embed_msg = "Embeddings cache updated."
+    except Exception as exc:
+        embed_msg = f"Embeddings cache update failed (non-fatal): {exc}"
+
+    return {
+        "status": "ok",
+        "hook_id": hook_id,
+        "message": f"Hook '{hook_data.get('hook_name', hook_id)}' uploaded successfully",
+        "embeddings": embed_msg,
+    }
 
 
 # ── Health Check ────────────────────────────────────────────────────────────
 
+@app.post("/api/catalog/rebuild-embeddings", tags=["Catalogs"])
+async def rebuild_embeddings():
+    """
+    Manually trigger a full incremental rebuild of the vector embeddings cache.
+    Only entries whose content has changed (by MD5 hash) will be re-embedded.
+    Safe to call at any time — idempotent.
+    """
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, build_embeddings_cache)
+        return {"status": "ok", "message": "Embeddings cache rebuilt successfully (incremental)."}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Rebuild failed: {exc}")
+
+
 @app.get("/health", tags=["System"])
 async def health_check():
-    return {"status": "healthy", "service": "FinSpark AI Integration Engine"}
+    return {
+        "status": "healthy",
+        "service": "FinSpark AI Integration Engine",
+        "vector_search": "ready" if vector_service.is_available() else "warming",
+    }
 
 
 # ── Run ─────────────────────────────────────────────────────────────────────

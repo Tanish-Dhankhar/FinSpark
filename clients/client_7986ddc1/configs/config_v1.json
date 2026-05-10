@@ -1,0 +1,519 @@
+{
+  "metadata": {
+    "config_id": "config_0b5b8c94489b",
+    "config_version": "v1",
+    "created_at": "2026-05-09T15:54:21.665671+00:00",
+    "last_updated_at": "2026-05-09T15:59:49.262356+00:00",
+    "status": "draft",
+    "client": {
+      "client_id": "client_7986ddc1",
+      "client_name": "test001",
+      "industry_vertical": "lending",
+      "region": "India",
+      "environment": "sandbox"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "NovaCred_BRD.pdf",
+        "type": "PDF"
+      },
+      {
+        "filename": "NovaCred_SOW.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_48a460d3",
+      "triggered_by": "project_creation",
+      "triggered_at": "2026-05-09T15:54:21.665671+00:00",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3,
+      "overall_status": "awaiting_review",
+      "human_review_status": "pending"
+    }
+  },
+  "credential_vault": {
+    "vault_provider": "env_file",
+    "credentials": []
+  },
+  "integrations": [
+    {
+      "integration_id": "karza-kyc-001",
+      "service_name": "Karza KYC Provider",
+      "adapter_id": "karza",
+      "category": "kyc",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v2",
+      "endpoint_url": "https://api.karza.in/v2/kyc-engine/verify",
+      "auth_type": "api_key",
+      "credential_env_vars": [
+        "$KARZA_API_KEY"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "aadhaar_uid",
+          "api_field": "aadhaar_number",
+          "mapping_type": "rename",
+          "description": "Mapping BRD Aadhaar UID to Karza required field"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Mapping BRD PAN ID to Karza required field"
+        },
+        {
+          "user_field": "kyc_consent_flag",
+          "api_field": "consent",
+          "mapping_type": "rename",
+          "description": "Mapping BRD consent flag to Karza required field"
+        },
+        {
+          "user_field": "applicant_full_name",
+          "api_field": "full_name",
+          "mapping_type": "rename",
+          "description": "Mapping BRD name to optional Karza field"
+        },
+        {
+          "user_field": "applicant_phone",
+          "api_field": "mobile_number",
+          "mapping_type": "rename",
+          "description": "Mapping BRD phone to optional Karza field"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII at rest and in transit"
+        },
+        {
+          "source_field": "aadhaar_uid",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "Masking followed by AES-256 encryption"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "description": "Encrypts all PII and sensitive fields in the outbound adapter payload using AES-256-GCM before transmitting over the network.",
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ]
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "description": "Dynamically constructs and injects the correct authentication header into the outbound HTTP request.",
+          "credential_env_vars": []
+        }
+      ],
+      "timeout_ms": 8000,
+      "retry_policy": {
+        "max_retries": 2,
+        "backoff_strategy": "fixed"
+      },
+      "sandbox_url": "https://sandbox-api.karza.in",
+      "fallback_adapter": "digilocker",
+      "deprecated": false,
+      "sunset_date": "2028-12-31",
+      "_brd_version_hint": "Latest stable",
+      "_brd_purpose": "Aadhaar eKYC & PAN verification",
+      "_brd_input_fields": [
+        "applicant_full_name",
+        "applicant_phone",
+        "pan_id",
+        "aadhaar_uid",
+        "kyc_consent_flag"
+      ]
+    },
+    {
+      "integration_id": "TU-CIBIL-001",
+      "service_name": "TransUnion CIBIL Bureau",
+      "adapter_id": "cibil",
+      "category": "bureau",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.cibil.com/v3/consumer/score",
+      "auth_type": "oauth2",
+      "credential_env_vars": [
+        "$CIBIL_OAUTH_CLIENT_ID",
+        "$CIBIL_OAUTH_CLIENT_SECRET"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "applicant_full_name",
+          "api_field": "full_name",
+          "mapping_type": "rename",
+          "description": "Maps BRD applicant name to CIBIL full_name"
+        },
+        {
+          "user_field": "dob_dd_mm_yyyy",
+          "api_field": "date_of_birth",
+          "mapping_type": "rename",
+          "description": "Maps BRD DOB to CIBIL date_of_birth"
+        },
+        {
+          "user_field": "pan_id",
+          "api_field": "pan_number",
+          "mapping_type": "rename",
+          "description": "Maps BRD PAN to CIBIL pan_number"
+        },
+        {
+          "user_field": "bureau_consent_flag",
+          "api_field": "consent_timestamp",
+          "mapping_type": "computed",
+          "description": "Maps boolean consent to timestamp"
+        },
+        {
+          "user_field": "null",
+          "api_field": "mobile_number",
+          "mapping_type": "missing",
+          "description": "Missing mobile number in BRD"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_id",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII at rest and in transit"
+        },
+        {
+          "source_field": "dob_dd_mm_yyyy",
+          "target_field": "date_of_birth",
+          "rule_type": "format",
+          "rule": "Convert DD/MM/YYYY to ISO 8601 YYYY-MM-DD"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ]
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": []
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "credential_env_vars": [
+            "$ALERT_WEBHOOK_SECRET"
+          ]
+        }
+      ],
+      "timeout_ms": 10000,
+      "retry_policy": {
+        "max_retries": 1,
+        "backoff_strategy": "exponential"
+      },
+      "sandbox_url": "https://sandbox-api.cibil.com",
+      "fallback_adapter": "experian",
+      "deprecated": false,
+      "sunset_date": "2027-12-31",
+      "_brd_version_hint": "Latest stable",
+      "_brd_purpose": "Credit score & bureau report",
+      "_brd_input_fields": [
+        "applicant_full_name",
+        "dob_dd_mm_yyyy",
+        "pan_id",
+        "bureau_consent_flag"
+      ]
+    },
+    {
+      "integration_id": "perfios-aa-001",
+      "service_name": "Perfios Account Aggregator",
+      "adapter_id": "perfios",
+      "category": "banking",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v2",
+      "endpoint_url": "https://api.perfios.com/v2/aa/statements",
+      "auth_type": "oauth2",
+      "credential_env_vars": [
+        "$PERFIOS_CLIENT_ID",
+        "$PERFIOS_CLIENT_SECRET"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "customer_id",
+          "api_field": "customer_id",
+          "mapping_type": "direct",
+          "description": "Unique applicant identifier mapped directly to API requirement"
+        },
+        {
+          "user_field": "date_range_from",
+          "api_field": "date_range_from",
+          "mapping_type": "direct",
+          "description": "ISO 8601 date range start"
+        },
+        {
+          "user_field": "date_range_to",
+          "api_field": "date_range_to",
+          "mapping_type": "direct",
+          "description": "ISO 8601 date range end"
+        },
+        {
+          "user_field": "consent_artifact",
+          "api_field": "consent_artifact",
+          "mapping_type": "direct",
+          "description": "RBI AA signed consent JWT token"
+        },
+        {
+          "user_field": "null",
+          "api_field": "account_number",
+          "mapping_type": "missing",
+          "description": "Borrower's bank account number"
+        },
+        {
+          "user_field": "null",
+          "api_field": "ifsc_code",
+          "mapping_type": "missing",
+          "description": "Bank branch IFSC code"
+        }
+      ],
+      "transformation_rules": [],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ]
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": []
+        }
+      ],
+      "timeout_ms": 10000,
+      "retry_policy": {
+        "max_retries": 1,
+        "backoff_strategy": "exponential"
+      },
+      "sandbox_url": "https://sandbox-api.perfios.com",
+      "fallback_adapter": null,
+      "deprecated": false,
+      "sunset_date": null,
+      "_brd_version_hint": "Latest stable",
+      "_brd_purpose": "Bank statement & income verification",
+      "_brd_input_fields": [
+        "customer_id",
+        "date_range_from",
+        "date_range_to",
+        "consent_artifact",
+        "aa_data_consent_flag"
+      ]
+    },
+    {
+      "integration_id": "riskguard-analytics-001",
+      "service_name": "RiskGuard Analytics Engine",
+      "adapter_id": "riskguard",
+      "category": "fraud",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.riskguard.internal/v3/risk-assessment",
+      "auth_type": "bearer_token",
+      "credential_env_vars": [
+        "$RISKGUARD_BEARER_TOKEN"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "request_ip_address",
+          "api_field": "ip_address",
+          "mapping_type": "rename",
+          "description": "Mapping BRD IP field to adapter required IP field"
+        },
+        {
+          "user_field": "session_device_hash",
+          "api_field": "device_fingerprint",
+          "mapping_type": "rename",
+          "description": "Mapping BRD device hash to adapter required device fingerprint"
+        },
+        {
+          "user_field": "loan_ask_amount",
+          "api_field": "loan_amount_requested",
+          "mapping_type": "rename",
+          "description": "Mapping BRD loan amount to adapter required loan amount"
+        },
+        {
+          "user_field": "applicant_id",
+          "api_field": "applicant_id",
+          "mapping_type": "direct",
+          "description": "Mapping BRD applicant ID to adapter required applicant ID"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "pan_number",
+          "mapping_type": "missing",
+          "description": "Required by adapter but not provided in BRD"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "mobile_number",
+          "mapping_type": "missing",
+          "description": "Required by adapter but not provided in BRD"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "Apply AES-256 encryption before transmission"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ]
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "credential_env_vars": []
+        }
+      ],
+      "timeout_ms": 4000,
+      "retry_policy": {
+        "max_retries": 1,
+        "backoff_strategy": "fixed"
+      },
+      "sandbox_url": "https://sandbox-api.riskguard.internal",
+      "fallback_adapter": null,
+      "deprecated": false,
+      "sunset_date": null,
+      "_brd_version_hint": "Latest non-beta stable",
+      "_brd_purpose": "Real-time fraud risk scoring",
+      "_brd_input_fields": [
+        "request_ip_address",
+        "session_device_hash",
+        "loan_ask_amount",
+        "applicant_id"
+      ]
+    },
+    {
+      "integration_id": "twilio-sms-integration-001",
+      "service_name": "Twilio SMS",
+      "adapter_id": "twilio",
+      "category": "messaging",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.twilio.com/v3/Accounts/{AccountSid}/Messages.json",
+      "auth_type": "basic_auth",
+      "credential_env_vars": [
+        "$TWILIO_ACCOUNT_SID",
+        "$TWILIO_AUTH_TOKEN"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "to",
+          "api_field": "to",
+          "mapping_type": "direct",
+          "description": "Applicant phone number mapped to destination field"
+        },
+        {
+          "user_field": "from",
+          "api_field": "from",
+          "mapping_type": "direct",
+          "description": "DLT-registered Sender ID"
+        },
+        {
+          "user_field": "body",
+          "api_field": "body",
+          "mapping_type": "direct",
+          "description": "SMS content"
+        },
+        {
+          "user_field": "account_sid",
+          "api_field": "account_sid",
+          "mapping_type": "direct",
+          "description": "Twilio Account SID"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "to",
+          "target_field": "to",
+          "rule_type": "encrypt",
+          "rule": "PII masking/encryption for applicant phone number"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "credential_env_vars": [
+            "$ALERT_WEBHOOK_SECRET"
+          ]
+        },
+        {
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "credential_env_vars": []
+        }
+      ],
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_retries": 3,
+        "backoff_strategy": "exponential"
+      },
+      "sandbox_url": "https://api.twilio.com/sandbox",
+      "fallback_adapter": null,
+      "deprecated": false,
+      "sunset_date": "2031-12-31",
+      "_brd_version_hint": "Latest non-deprecated stable",
+      "_brd_purpose": "Applicant SMS notifications",
+      "_brd_input_fields": [
+        "from",
+        "body",
+        "account_sid",
+        "to"
+      ]
+    }
+  ],
+  "diff_history": {
+    "versions": []
+  },
+  "audit_log": {
+    "entries": []
+  },
+  "simulation_report": {
+    "report_id": "",
+    "generated_at": "",
+    "overall_confidence_score": null,
+    "overall_passed": null,
+    "total_integrations_tested": null,
+    "passed_count": null,
+    "failed_count": null,
+    "human_readable_summary": "",
+    "recommended_actions": [],
+    "report_file_path": "",
+    "integration_results": []
+  }
+}

@@ -23,6 +23,15 @@ CONFIG_TEMPLATE_PATH = TEMPLATES_DIR / "config_v1_template.json"
 ADAPTER_MASTER_INDEX = ADAPTERS_CATALOG_DIR / "master_index.json"
 HOOK_MASTER_INDEX = HOOKS_CATALOG_DIR / "master_index.json"
 
+# ── Vector Search (Embeddings Cache) ────────────────────────────────────────
+ADAPTER_EMBEDDINGS_CACHE = ADAPTERS_CATALOG_DIR / "embeddings_cache.json"
+HOOK_EMBEDDINGS_CACHE    = HOOKS_CATALOG_DIR / "embeddings_cache.json"
+VECTOR_TOP_K_ADAPTERS    = 3     # top-3 candidates per service (per-service querying)
+VECTOR_TOP_K_HOOKS       = 5     # top-5 hook candidates per integration
+VECTOR_SIMILARITY_THRESHOLD = 0.45  # below this → low-confidence warning + fallback
+VECTOR_EMBEDDING_DIM     = 512   # MRL truncation: 33% smaller, <1% accuracy loss
+GEMINI_EMBEDDING_MODEL   = "models/gemini-embedding-2"
+
 # ── Client Folder Sub-directories ───────────────────────────────────────────
 CLIENT_SUBDIRS = [
     "input_documents",
@@ -33,9 +42,10 @@ CLIENT_SUBDIRS = [
 ]
 
 # ── LLM Settings ────────────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Gemini 3.1 Flash Lite
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Gemini 3.1 Flash Lite (generation)
+# Note: embedding model is GEMINI_EMBEDDING_MODEL = "text-embedding-005" (see above)
 GEMINI_TEMPERATURE = 0.2  # Low temperature for structured extraction
-GEMINI_MAX_OUTPUT_TOKENS = 65536
+GEMINI_MAX_OUTPUT_TOKENS = 8192   # Per-service calls: one integration JSON at a time
 
 # ── Pipeline Settings ───────────────────────────────────────────────────────
 MAX_CORRECTION_ITERATIONS = 3

@@ -82,6 +82,18 @@ def call_llm(
                 "503", "overloaded", "unavailable", "deadline",
                 "500", "internal"
             ])
+            # Max-token errors are NOT retryable — the prompt is too large
+            is_token_overflow = any(kw in error_str for kw in [
+                "generation exceeded max tokens",
+                "max_tokens",
+                "output tokens limit",
+                "exceeds the maximum",
+            ])
+            if is_token_overflow:
+                raise ValueError(
+                    f"LLM output token overflow — prompt or response is too large. "
+                    f"Try splitting the request into smaller chunks. Error: {e}"
+                )
             if is_retryable and attempt < max_retries - 1:
                 wait_time = min(2 ** attempt * 2, 60)  # 2, 4, 8, 16, 32, max 60
                 print(f"  ⏳ Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...")

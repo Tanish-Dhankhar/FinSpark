@@ -1,11 +1,22 @@
 {
   "hook_name": "pre_validation_hook",
   "hook_type": "validation",
-  "description": "Validates all required input fields are present and match their expected types and rules.",
-  "trigger_condition": "Before outbound adapter call",
-  "applicable_adapters": [
-    "*"
+  "description": "Validates that all required input fields are present and conform to their expected types and validation rules before the adapter call is made. Reads the required_fields schema from the adapter catalog and cross-checks the assembled input payload. Blocks the adapter call if any required field is missing, has the wrong type, or fails a regex or range rule. Returns a detailed validation report listing every failed field, making it easy to identify and fix data collection issues upstream. Prevents wasted API quota and avoids sending malformed requests that would return 400 errors.",
+  "use_cases": [
+    "Checking PAN format before sending to CIBIL or Experian",
+    "Validating GSTIN format before hitting the GST API",
+    "Ensuring Aadhaar is 12 digits before KYC adapter call",
+    "Preventing malformed payment amounts from reaching Razorpay",
+    "Catching missing consent fields before bureau pulls"
   ],
+  "semantic_tags": [
+    "input validation", "field validation", "pre-call", "required field check",
+    "type validation", "regex validation", "payload validation",
+    "schema enforcement", "400 prevention", "data quality", "validation report"
+  ],
+  "when_to_use": "Attach to all adapters. Runs before field_encryption_hook and the outbound API call to catch data errors early and avoid wasted API calls.",
+  "trigger_condition": "Before outbound adapter call; after credential resolution",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 4,
   "is_blocking": true,
@@ -20,53 +31,42 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Target adapter",
+      "description": "Adapter being validated against",
       "default_value": ""
     },
     {
       "param_name": "adapter_version",
       "type": "string",
       "required": true,
-      "description": "Version of the adapter to validate against",
+      "description": "Adapter version for schema rule selection",
       "default_value": "v1"
     },
     {
       "param_name": "input_payload",
       "type": "object",
       "required": true,
-      "description": "Payload constructed for the request",
+      "description": "Assembled input payload to validate",
       "default_value": "{}"
     },
     {
       "param_name": "required_fields_schema",
       "type": "object",
       "required": true,
-      "description": "Adapter specific schema rule definitions",
+      "description": "Required fields schema from adapter catalog",
       "default_value": "{}"
     }
   ],
   "output": {
-    "on_success": "validation_passed: true, validated_payload",
-    "on_failure": "validation_report listing every failed field, pipeline aborted for this adapter"
+    "on_success": "validation_passed: true; validated_payload returned",
+    "on_failure": "Detailed validation_report per failed field; adapter call blocked"
   },
   "timeout_ms": 500,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
     "HOOK_001": "Missing mandatory field.",
     "HOOK_002": "Type mismatch for field.",
-    "HOOK_003": "Field failed explicit regex validation."
-  },
-  "example_log_entry": {
-    "hook_name": "pre_validation_hook",
-    "triggered_at": "2026-04-02T10:30:01Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "razorpay",
-    "result": "FAILED - validation_report generated: order_amount must be integer."
+    "HOOK_003": "Field failed regex or range validation."
   }
 }

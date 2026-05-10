@@ -1,72 +1,116 @@
 """
-Stage 2 — Requirement Parsing Engine (Simplified)
-Single LLM call: full document text + master_index → structured requirements summary.
-Then template fill: requirements + config → populated config.
+Stage 2 — Requirement Extraction Engine
+========================================
+Single LLM call: full document text → exhaustive structured extraction.
+Then template fill: requirements + config → populated config skeleton.
+
+Design principles:
+  • Stage 2 is ONLY an extractor — it never filters, ranks, or matches adapters.
+  • It captures EVERYTHING the BRD mentions: specific API names, exact versions
+    (even if not in our catalog), all input/output fields, endpoint hints,
+    auth types, compliance requirements, and hook/webhook signals.
+  • Stage 3 will use this rich extraction to do vector-based catalog matching.
 """
 import json
 from typing import Dict
 
-from backend.config import ADAPTER_MASTER_INDEX, HOOK_MASTER_INDEX
 from backend.services.llm_service import call_llm, call_llm_json
 from backend.services.audit_service import emit_audit_event
 from backend.services.project_service import get_latest_config, save_config
 
 
-EXTRACTION_SYSTEM_PROMPT = """You are an enterprise integration requirements analyst. 
-Your job is to extract all integration-related signals from business requirement documents.
-You are precise, exhaustive, and structured in your output.
-You never hallucinate services that aren't mentioned in the document."""
+# Known service categories — used only so Stage 2 can classify what type of
+# service was mentioned. Actual catalog matching happens in Stage 3.
+KNOWN_ADAPTER_CATEGORIES = (
+    "bureau, kyc, payment, banking, gst, fraud, messaging, document, health_records, other"
+)
+
+EXTRACTION_SYSTEM_PROMPT = """You are an enterprise integration requirements analyst.
+Your job is to exhaustively extract every integration signal from business requirement documents.
+
+Critical rules:
+1. Extract EVERY service or API mentioned — even if you have never heard of it.
+2. If the BRD names a specific API provider or product (e.g. "TransUnion CIBIL v2", "Razorpay", "DigiLocker"),
+   capture the exact name and version. Do NOT generalize or omit it.
+3. If a specific version is mentioned (e.g. "v2", "version 3.1", "2024 API"), capture it exactly.
+4. If a service is only vaguely described (e.g. "a credit scoring API"), still extract it with
+   confidence="low" and your best guess at category and purpose.
+5. Capture ALL input/output fields mentioned anywhere in the document for each adapter.
+6. Capture ALL endpoint URLs, auth types, and webhook/callback mentions.
+7. DO NOT hallucinate services not mentioned. Only extract what is actually there.
+8. Be exhaustive — it is better to extract too much than to miss anything."""
 
 EXTRACTION_PROMPT_TEMPLATE = """Analyze the following enterprise document(s) and extract ALL integration requirements.
 
-Here is the catalog of available adapters for context (these are the ONLY adapters that can be matched):
-{adapter_index}
+Known categories to classify each detected service into:
+{known_categories}
 
-Here is the catalog of available hooks:
-{hook_index}
+Use category "other" if a service doesn't fit any known category.
 
 ---
 DOCUMENT TEXT:
 {document_text}
 ---
 
-Extract and return a JSON object with this exact structure:
+Extract and return a JSON object with this EXACT structure.
+Leave fields as null if not mentioned — never fabricate information.
+
 {{
   "services_detected": [
     {{
-      "service_name": "Name of the service/API",
-      "provider": "Provider name",
-      "category": "bureau/kyc/payment/banking/gst/fraud/messaging/document",
+      "service_name": "Exact name as mentioned in the document (e.g. 'TransUnion CIBIL', 'Razorpay Payment Gateway')",
+      "provider": "Provider/vendor name if mentioned, else null",
+      "category": "one of the known categories above",
       "is_mandatory": true,
-      "confidence": "high/medium/low",
-      "version_hint": "any version mentioned in docs or null",
-      "endpoint_hints": ["any endpoint URLs mentioned"],
-      "purpose": "brief description of why this service is needed",
-      "fields_mentioned": ["list of data field names mentioned in context of this service"],
-      "data_types_mentioned": ["list of data types mentioned"],
-      "hook_signals": ["any webhook/hook/callback mentions related to this service"]
+      "confidence": "high (explicitly named) / medium (clearly implied) / low (vaguely described)",
+      "exact_api_name_from_doc": "Copy the exact string used in the document to name this API, if any",
+      "version_hint": "Exact version string mentioned (e.g. 'v2', '3.1', '2024') or null if not mentioned",
+      "version_is_explicit": true,
+      "endpoint_hints": ["Any endpoint URLs or paths literally mentioned in the document"],
+      "auth_type_hint": "Any auth type mentioned (OAuth2, API Key, Basic Auth) or null",
+      "purpose": "Why is this service needed? What business problem does it solve?",
+      "input_fields_mentioned": [
+        {{
+          "field_name": "exact field name from doc",
+          "field_type": "string/integer/date/boolean/etc if mentioned, else null",
+          "is_pii": true,
+          "notes": "any validation rules, formats, or constraints mentioned"
+        }}
+      ],
+      "output_fields_mentioned": ["list of response/output field names mentioned"],
+      "compliance_requirements": ["RBI, KYC, AML, GDPR, etc. — only if explicitly linked to this service"],
+      "hook_signals": ["Any webhook, callback, event, or notification mentions for this specific service"],
+      "additional_context": "Any other relevant detail about this service from the document"
     }}
   ],
   "general_requirements": {{
-    "industry_vertical": "detected industry",
-    "region": "detected region/country",
-    "security_requirements": ["list of security needs mentioned"],
-    "compliance_requirements": ["list of compliance needs mentioned"],
-    "data_fields_global": ["all data field names mentioned across the entire document"]
+    "industry_vertical": "detected industry (e.g. lending, insurance, payments)",
+    "region": "country/region if mentioned",
+    "security_requirements": ["encryption, HTTPS, mTLS, etc."],
+    "compliance_requirements": ["all compliance standards mentioned globally"],
+    "data_fields_global": ["every data field name mentioned anywhere in the entire document"],
+    "global_hook_signals": ["any webhook/event/notification mentions not tied to a specific service"],
+    "non_catalog_apis": ["list any APIs mentioned that seem custom or non-standard"]
   }}
 }}
 
-Be thorough. Extract every service, field, and integration signal. Only include services that are ACTUALLY mentioned or clearly implied in the document.
+IMPORTANT: If the BRD mentions a specific API by name (even one you don't recognize),
+always include it. The downstream matching engine will decide if it's in our catalog.
 """
 
 TEMPLATE_FILL_SYSTEM_PROMPT = """You are an enterprise integration configuration engine.
-Your job is to populate a JSON configuration template with information extracted from requirement documents.
+Your job is to populate a JSON configuration template skeleton with information
+extracted from requirement documents.
+
 Rules:
 1. Fill every field you can CONFIDENTLY populate from the provided requirements.
 2. Do NOT remove or restructure any fields from the template.
 3. Leave unfillable fields exactly as they are in the template.
-4. For the integrations array, create one entry per detected service with as much detail as possible.
-5. Return ONLY valid JSON — the complete config with filled fields."""
+4. For the integrations array, create one skeleton entry per detected service.
+   Leave adapter_id, endpoint_url, auth_type, field_mapping EMPTY — Stage 3 will fill these.
+5. Populate: integration_id, service_name, category, is_mandatory, status="detected",
+   and any version_hint from the BRD.
+6. Return ONLY valid JSON — the complete config with filled fields."""
 
 TEMPLATE_FILL_PROMPT = """Here are the extracted integration requirements:
 {requirements_summary}
@@ -74,12 +118,12 @@ TEMPLATE_FILL_PROMPT = """Here are the extracted integration requirements:
 Here is the current configuration template:
 {current_config}
 
-Fill the configuration template with information from the requirements. For each detected service, create an integration entry in the "integrations" array with this structure:
+Create one integration skeleton entry per detected service in the "integrations" array:
 {{
-  "integration_id": "unique_id",
-  "service_name": "service name",
+  "integration_id": "unique_id based on service name",
+  "service_name": "service name from requirements",
   "adapter_id": "",
-  "category": "category",
+  "category": "category from requirements",
   "is_mandatory": true/false,
   "status": "detected",
   "selected_version": "",
@@ -92,30 +136,35 @@ Fill the configuration template with information from the requirements. For each
   "timeout_ms": null,
   "retry_policy": {{}},
   "sandbox_url": "",
-  "fallback_adapter": null
+  "fallback_adapter": null,
+  "_brd_version_hint": "version string from BRD if any, else null",
+  "_brd_purpose": "purpose extracted from BRD",
+  "_brd_input_fields": []
 }}
 
-Also fill in the metadata fields: industry_vertical, region, uploaded_documents list.
+Also fill in metadata: industry_vertical, region, uploaded_documents.
 Return the COMPLETE config JSON with all fields preserved.
 """
 
 
 def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
     """
-    Execute Stage 2 — Requirement Parsing.
-    
-    1. Single LLM call: full document text + catalog indexes → structured requirements
-    2. Template fill LLM call: requirements + config → populated config
-    
+    Execute Stage 2 — Requirement Extraction.
+
+    1. Exhaustive extraction: full document text → structured requirements
+       (captures specific APIs/versions even if not in catalog)
+    2. Template skeleton fill: requirements → integration stubs in config
+       (Stage 3 will enrich each stub with adapter data)
+
     Args:
         client_id: The client folder ID
         extracted_texts: Dict of filename → extracted text from Stage 1
-        
+
     Returns:
-        The requirements summary dict
+        The requirements summary dict (passed to Stage 3)
     """
     print(f"\n{'='*60}")
-    print(f"  Stage 2 — Requirement Parsing Engine")
+    print(f"  Stage 2 — Requirement Extraction Engine")
     print(f"{'='*60}")
 
     # Combine all document texts
@@ -123,17 +172,12 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
     for filename, text in extracted_texts.items():
         combined_text += f"\n\n===== {filename} =====\n\n{text}"
 
-    # Load catalog indexes for context
-    adapter_index = json.loads(ADAPTER_MASTER_INDEX.read_text(encoding="utf-8"))
-    hook_index = json.loads(HOOK_MASTER_INDEX.read_text(encoding="utf-8"))
-
-    # ── Step 1: Extract requirements (single LLM call) ────────────────────
-    print(f"\n  🔍 Step 1: Extracting integration requirements...")
+    # ── Step 1: Exhaustive requirement extraction ─────────────────────────
+    print(f"\n  🔍 Step 1: Extracting all integration signals from documents...")
     print(f"     Document length: {len(combined_text)} characters")
 
     extraction_prompt = EXTRACTION_PROMPT_TEMPLATE.format(
-        adapter_index=json.dumps(adapter_index, indent=2),
-        hook_index=json.dumps(hook_index, indent=2),
+        known_categories=KNOWN_ADAPTER_CATEGORIES,
         document_text=combined_text,
     )
 
@@ -146,7 +190,11 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
     print(f"     ✅ Detected {len(services)} integration services:")
     for svc in services:
         mandatory = "MANDATORY" if svc.get("is_mandatory") else "optional"
-        print(f"        • {svc['service_name']} ({svc.get('category', '?')}) [{mandatory}]")
+        version_str = f" [v={svc.get('version_hint')}]" if svc.get("version_hint") else ""
+        explicit_str = " (explicit)" if svc.get("version_is_explicit") else ""
+        fields_count = len(svc.get("input_fields_mentioned", []))
+        print(f"        • {svc['service_name']} ({svc.get('category', '?')}) "
+              f"[{mandatory}]{version_str}{explicit_str} — {fields_count} input fields")
 
     emit_audit_event(
         client_id=client_id,
@@ -157,8 +205,8 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
         output_data=json.dumps(requirements)[:200],
     )
 
-    # ── Step 2: Fill config template ──────────────────────────────────────
-    print(f"\n  📝 Step 2: Filling config template with extracted requirements...")
+    # ── Step 2: Fill config skeleton ──────────────────────────────────────
+    print(f"\n  📝 Step 2: Creating integration stubs in config template...")
 
     current_config = get_latest_config(client_id)
     if not current_config:
@@ -180,10 +228,9 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
         system_instruction=TEMPLATE_FILL_SYSTEM_PROMPT,
     )
 
-    # Validate basic structure
+    # Validate basic structure — merge if LLM returned incomplete
     if "metadata" not in filled_config or "integrations" not in filled_config:
         print(f"     ⚠️  LLM returned incomplete config structure, merging with template...")
-        # Merge: keep template structure, overlay LLM output
         for key in filled_config:
             if key in current_config:
                 current_config[key] = filled_config[key]
@@ -192,12 +239,13 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
     # Save updated config
     save_config(client_id, filled_config)
     integrations_count = len(filled_config.get("integrations", []))
-    print(f"     ✅ Config populated with {integrations_count} integrations")
+    print(f"     ✅ Config skeleton created with {integrations_count} integration stubs")
+    print(f"        (Stage 3 will enrich each stub via vector search + adapter JSON)")
 
     emit_audit_event(
         client_id=client_id,
         stage="stage_2_parsing",
-        action=f"Config template filled with {integrations_count} integrations",
+        action=f"Config skeleton filled with {integrations_count} integration stubs",
         agent="gemini_flash_lite",
         input_data=json.dumps(requirements)[:200],
         output_data=json.dumps(filled_config)[:200],

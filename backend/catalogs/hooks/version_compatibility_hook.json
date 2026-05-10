@@ -1,11 +1,22 @@
 {
   "hook_name": "version_compatibility_hook",
   "hook_type": "pre-call",
-  "description": "Checks if the config version is deprecated and auto-suggests or applies stable fallbacks.",
-  "trigger_condition": "Before every adapter call, after credential check",
-  "applicable_adapters": [
-    "*"
+  "description": "Checks if the adapter version specified in the integration config is deprecated, sunset, or absent from the catalog before making any API call. If the requested version is deprecated and a stable alternative exists, it automatically overrides to the latest non-deprecated stable version and logs the substitution with a reason. Non-blocking — if no stable override is available, it attaches a warning to the simulation report and allows the pipeline to continue with the selected version. Prevents integrations from silently using expired API versions that may be shut down, reducing production outage risk.",
+  "use_cases": [
+    "Auto-upgrading deprecated CIBIL v1 to stable v3",
+    "Detecting sunset Experian v2 and switching to v3",
+    "Flagging beta version usage for review before production",
+    "Warning when a BRD requests a version not in the catalog",
+    "Audit trail of all version overrides for compliance review"
   ],
+  "semantic_tags": [
+    "version check", "deprecation", "version upgrade", "API version",
+    "sunset date", "version compatibility", "pre-call", "version override",
+    "stable version", "deprecated adapter", "version management", "catalog version"
+  ],
+  "when_to_use": "Attach to all adapters. Runs after credential_resolve_hook and before pre_validation_hook to ensure the correct version is used before any validation occurs.",
+  "trigger_condition": "Before every adapter call, after credential resolution",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 2,
   "is_blocking": false,
@@ -20,53 +31,42 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Adapter Name",
+      "description": "Adapter name to check version for",
       "default_value": ""
     },
     {
       "param_name": "selected_version",
       "type": "string",
       "required": true,
-      "description": "Version currently parsed by AI into config",
+      "description": "Version specified in the integration config",
       "default_value": ""
     },
     {
       "param_name": "available_versions",
       "type": "object",
       "required": true,
-      "description": "Array of catalog versions",
+      "description": "Array of all versions from the adapter catalog JSON",
       "default_value": "[]"
     },
     {
       "param_name": "deprecation_status",
       "type": "boolean",
       "required": true,
-      "description": "True if version is deprecated in catalog",
+      "description": "True if selected version is marked deprecated in catalog",
       "default_value": "false"
     }
   ],
   "output": {
-    "on_success": "version confirmed or version_override applied with reason logged",
-    "on_failure": "warning attached to simulation report, pipeline continues with selected version"
+    "on_success": "Version confirmed or version_override applied with substitution reason logged",
+    "on_failure": "Version warning attached to simulation report; pipeline continues with selected version"
   },
   "timeout_ms": 300,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Provided version string does not exist in catalog.",
-    "HOOK_002": "Failure parsing maturity matrices.",
-    "HOOK_003": "Warning: Auto-upgrade schema incompatible, falling back to deprecated version."
-  },
-  "example_log_entry": {
-    "hook_name": "version_compatibility_hook",
-    "triggered_at": "2026-04-02T10:30:26Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "cibil",
-    "result": "OVERRIDE - Replaced deprecated v1 with stable v3."
+    "HOOK_001": "Provided version not found in catalog.",
+    "HOOK_002": "Failure parsing version maturity matrices.",
+    "HOOK_003": "Auto-upgrade schema incompatible; falling back to deprecated version."
   }
 }

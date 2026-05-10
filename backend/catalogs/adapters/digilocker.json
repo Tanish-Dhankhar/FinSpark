@@ -1,10 +1,28 @@
 {
   "adapter_name": "Digilocker Document Fetch",
   "category": "document",
-  "description": "Fetch official documents issued by Indian Government bodies.",
   "provider": "National e-Governance Division, Government of India",
-  "base_url": "https://api.digitallocker.gov.in",
+  "description": "Fetches officially issued Indian government documents from a citizen's DigiLocker vault with their consent. Documents include Aadhaar card, PAN card, driving licence, voter ID, and marksheets issued by government bodies. Used as a secure, paperless way to obtain proof of identity and address during digital onboarding. DigiLocker documents are legally equivalent to original physical documents under the IT Act 2000.",
+  "use_cases": [
+    "Paperless KYC document collection for digital onboarding",
+    "Fetching Aadhaar as proof of identity and address",
+    "Retrieving PAN card for income tax and identity verification",
+    "Driving licence fetch for age and identity verification",
+    "Voter ID retrieval as address proof",
+    "Marksheet or degree certificate fetch for income product eligibility",
+    "Document authenticity verification for loan processing"
+  ],
+  "semantic_tags": [
+    "DigiLocker", "document fetch", "government document", "Aadhaar", "PAN card",
+    "driving licence", "voter ID", "proof of identity", "proof of address",
+    "digital KYC", "paperless onboarding", "eKYC document", "IT Act 2000",
+    "document verification", "NeSDA", "India digital locker", "NeGD"
+  ],
+  "compliance_context": "IT Act 2000 Section 4 — DigiLocker documents are legally equivalent to originals. UIDAI consent mandatory for Aadhaar document access. Data localisation norms apply.",
+  "typical_callers": "Banks, NBFCs, insurance companies, digital lenders, telecom operators, educational institutions requiring government-issued identity or address proof",
+  "auth_description": "OAuth2 authorization code flow. User authenticates with DigiLocker and grants access. Client ID and secret used to exchange code for access token.",
   "auth_type": "oauth2",
+  "base_url": "https://api.digitallocker.gov.in",
   "credential_env_vars": [
     "DIGILOCKER_CLIENT_ID",
     "DIGILOCKER_CLIENT_SECRET"
@@ -16,7 +34,7 @@
       "status": "deprecated",
       "maturity_score": 4,
       "deprecated": true,
-      "release_notes": "Legacy integration, slower sync.",
+      "release_notes": "Legacy integration, slower sync",
       "sunset_date": "2025-01-15"
     },
     {
@@ -25,7 +43,7 @@
       "status": "stable",
       "maturity_score": 9,
       "deprecated": false,
-      "release_notes": "Improved consent mechanisms and reliability.",
+      "release_notes": "Improved consent mechanisms and reliability",
       "sunset_date": "2028-06-30"
     }
   ],
@@ -33,85 +51,61 @@
     {
       "field_name": "aadhaar_number",
       "type": "string",
-      "description": "12 digit Aadhaar number",
+      "description": "12-digit Aadhaar UID of the citizen",
       "validation": "12 digit numeric"
     },
     {
       "field_name": "document_type",
       "type": "enum",
-      "description": "Short code of the document type to pull",
+      "description": "Type of government document to retrieve",
       "validation": "Enum: ADHAR/PANCR/DRVLC/VOTERID"
     },
     {
       "field_name": "consent_token",
       "type": "string",
-      "description": "Bearer token proving user consent",
+      "description": "OAuth2 access token proving user consent for document access",
       "validation": "Valid JWT token"
     },
     {
       "field_name": "redirect_uri",
       "type": "string",
-      "description": "Application callback URL after auth",
-      "validation": "Valid HTTP/HTTPS URI"
+      "description": "Application callback URL after DigiLocker authorization",
+      "validation": "Valid HTTPS URI"
     }
   ],
   "optional_fields": [
     {
       "field_name": "dob",
       "type": "date",
-      "description": "Date of Birth",
+      "description": "Date of birth to cross-match with document record",
       "default_value": "null"
     },
     {
       "field_name": "gender",
       "type": "string",
-      "description": "User gender to match record",
+      "description": "Gender to match against document record",
       "default_value": "null"
     }
   ],
   "response_schema": {
-    "document_url": {
-      "type": "string",
-      "description": "URL to download document"
-    },
-    "document_id": {
-      "type": "string",
-      "description": "Unique ID of the document vault"
-    },
-    "issuer": {
-      "type": "string",
-      "description": "Name of the issuer"
-    },
-    "issue_date": {
-      "type": "date",
-      "description": "Date document was issued"
-    },
-    "verification_status": {
-      "type": "string",
-      "description": "VERIFIED or UNVERIFIED"
-    },
-    "name_on_document": {
-      "type": "string",
-      "description": "Full name printed"
-    },
-    "expiry_date": {
-      "type": "date",
-      "description": "When document expires, if any"
-    }
+    "document_url": { "type": "string", "description": "Signed URL to download the document" },
+    "document_id": { "type": "string", "description": "DigiLocker document vault ID" },
+    "issuer": { "type": "string", "description": "Issuing government body" },
+    "issue_date": { "type": "date", "description": "Date document was issued" },
+    "verification_status": { "type": "string", "description": "VERIFIED or UNVERIFIED" },
+    "name_on_document": { "type": "string", "description": "Full name on document" },
+    "expiry_date": { "type": "date", "description": "Document expiry date if applicable" }
   },
   "error_codes": {
     "400": "Invalid document type or Aadhaar format.",
     "401": "Invalid OAuth2 consent token.",
-    "403": "User did not grant permission to this document.",
+    "403": "User did not grant permission.",
     "404": "Document not found in vault.",
     "429": "Rate limit exceeded.",
-    "500": "Digilocker internal server error."
+    "500": "DigiLocker internal error."
   },
   "timeout_ms": 8000,
-  "retry_policy": {
-    "max_retries": 3,
-    "backoff_strategy": "exponential"
-  },
+  "retry_policy": { "max_retries": 3, "backoff_strategy": "exponential" },
   "sandbox_base_url": "https://sandbox.digitallocker.gov.in",
   "fallback_adapter": null
 }

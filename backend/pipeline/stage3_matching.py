@@ -1,209 +1,297 @@
 """
-Stage 3 — Catalog Matching & Config Enrichment
-6 sub-steps with selective file fetching:
-  3a: Adapter Matching (1 LLM) → matched adapter IDs
-  3b: Selective File Fetch (code) → load only matched adapter JSONs
-  3c: Config Fill (1 LLM) → enriched config
-  3d: Hook Matching (1 LLM) → matched hook IDs
-  3e: Hook Fetch + Fill (1 LLM) → config with hooks
-  3f: Field Mapping (1 LLM) → field_mapping[] + transformation_rules[]
+Stage 3 — Retrieval-Augmented Catalog Matching & Config Enrichment
+==================================================================
+Processes each integration ONE-BY-ONE (serial, not batched):
+
+For each detected service:
+  3a: Build search query from purpose/category/provider (NOT input fields)
+      → vector search → top-3 adapter candidates
+  3b: LLM picks the best adapter from top-3
+  3c: Fetch FULL adapter JSON (e.g. cibil.json)
+  3d: LLM fills config + field mapping for THIS service using:
+      - Stage 2 extraction (all BRD fields for this service)
+      - Full adapter JSON (endpoints, auth, fields, versions, etc.)
+
+For each integration (after adapters are matched):
+  3e: Build hook search query → vector search → top-5 hook candidates
+  3f: LLM picks hooks for THIS integration
+  3g: Fetch full hook JSONs → LLM fills hook config for THIS integration
 """
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from backend.config import (
     ADAPTER_MASTER_INDEX, HOOK_MASTER_INDEX,
     ADAPTERS_CATALOG_DIR, HOOKS_CATALOG_DIR,
+    VECTOR_TOP_K_ADAPTERS, VECTOR_TOP_K_HOOKS,
 )
 from backend.services.llm_service import call_llm_json
 from backend.services.audit_service import emit_audit_event
 from backend.services.project_service import get_latest_config, save_config
+from backend.services import vector_service
+from backend.services.vector_service import (
+    search_adapters, search_hooks,
+    is_available as vector_is_available,
+)
 
 
 # ── Prompt Templates ────────────────────────────────────────────────────────
 
-ADAPTER_MATCH_SYSTEM = """You are an enterprise integration adapter matcher.
-Given integration requirements and a catalog of available adapters, select the best-fit adapter for each detected service.
-Only match adapters that are actually relevant. Consider version deprecation status and maturity scores."""
+ADAPTER_PICK_SYSTEM = """You are an enterprise integration adapter selector.
+You receive top-3 semantically retrieved adapter candidates for ONE service.
+Pick the SINGLE best adapter. Consider: semantic_similarity_score (higher=better),
+category alignment, and version hints from the BRD.
+If the BRD names a specific provider (e.g. 'CIBIL', 'Razorpay'), prefer that exact match.
+If multiple candidates are from the same category, pick the one with the highest score.
+Only use adapter IDs exactly as listed in the provided candidates list — do not invent new IDs."""
 
-ADAPTER_MATCH_PROMPT = """Here are the extracted integration requirements:
-{requirements}
+ADAPTER_PICK_PROMPT = """Service requirement from BRD:
+{service_info}
 
-Here is the adapter catalog master index:
-{adapter_index}
+Top-3 adapter candidates (ranked by semantic similarity):
+{candidates}
 
-For each service detected in the requirements, match it to the best adapter from the catalog.
-Consider:
-- Service name and category alignment
-- Version hints from the BRD (if any)
-- Prefer non-deprecated versions
-- Prefer higher maturity scores
-- If no adapter matches a service, omit it
-
-Return JSON:
+Pick the single best adapter. Return JSON:
 {{
-  "matched_adapters": [
-    {{
-      "service_name": "name from requirements",
-      "adapter_id": "id from catalog",
-      "recommended_version": "best version to use",
-      "match_confidence": "high/medium/low",
-      "reason": "why this adapter was selected"
-    }}
-  ]
+  "adapter_id": "chosen adapter id from candidates",
+  "recommended_version": "best version to use",
+  "match_confidence": "high/medium/low",
+  "semantic_similarity_score": 0.0,
+  "reason": "why this adapter was chosen"
 }}
-"""
 
-CONFIG_FILL_SYSTEM = """You are an enterprise integration configuration engine.
-Your job is to enrich a configuration file with detailed adapter information.
-Fill in endpoints, auth types, credential references, timeout, retry policies from the adapter catalog data.
-Use $ENV_VAR_NAME format for all credential references — never put actual API keys.
-IMPORTANT: For every decision, add reasoning annotations as described below."""
+If no candidate is suitable, set adapter_id to "unmatched"."""
 
-CONFIG_FILL_PROMPT = """Here is the current config:
-{current_config}
+INTEGRATION_FILL_SYSTEM = """You are an enterprise integration configuration engine.
+You receive the FULL adapter catalog JSON for ONE matched adapter.
+Fill the integration config entry using the adapter data and BRD requirements.
+Use $ENV_VAR_NAME format for all credentials — never put real secrets.
+Be precise: copy exact values from the adapter JSON (endpoints, auth_type, timeout, retry_policy).
+Include reasoning annotations for every major decision."""
 
-Here are the matched adapter details (full catalog entries):
-{adapter_details}
+INTEGRATION_FILL_PROMPT = """Fill the integration config for this ONE service.
 
-Here are the requirements:
-{requirements}
+SERVICE INFO FROM BRD:
+{service_info}
 
-For each integration in the config's "integrations" array, enrich it with the matched adapter data:
-- Set adapter_id to the matched adapter's id
-- Set selected_version to the recommended version
-- Set endpoint_url to the full URL (base_url + version endpoint)
-- Set auth_type from the adapter
-- Set credential_env_vars from the adapter (as $VAR_NAME references)
-- Set timeout_ms from the adapter
-- Set retry_policy from the adapter
-- Set sandbox_url from the adapter
-- Set fallback_adapter from the adapter
-- Set deprecated to the boolean "deprecated" field from the selected version entry in the adapter catalog
-- Set sunset_date to the "sunset_date" string (or null) from the selected version entry in the adapter catalog
-- Set status to "adapter_matched"
+CHOSEN ADAPTER (full catalog entry):
+{adapter_json}
 
-**REASONING ANNOTATIONS (required for every integration):**
-- Add "_adapter_reason": a short string explaining WHY this adapter was chosen for this service (e.g. "Best category match for credit bureau; highest maturity score").
-- Add "_version_reason": a short string explaining WHY this version was selected. If a version mentioned in the BRD document is deprecated, explain that you selected the newer non-deprecated version instead (e.g. "BRD requested v1 but it is deprecated with sunset 2025-06-01; auto-upgraded to v2 which is stable").
-- If an API or service from the requirements has NO matching adapter in the catalog, still include the integration entry with adapter_id set to "unmatched" and add "_adapter_reason": "No matching adapter found in catalog for this service".
+CHOSEN VERSION: {chosen_version}
+MATCH REASON: {match_reason}
 
-If an integration doesn't have a matched adapter, leave it unchanged.
-
-Return the COMPLETE updated config JSON with all fields preserved."""
-
-HOOK_MATCH_SYSTEM = """You are a hook selection engine for enterprise integrations.
-Select the most appropriate hooks for each integration based on the hook catalog and integration context."""
-
-HOOK_MATCH_PROMPT = """Here is the hook catalog master index:
-{hook_index}
-
-Here are the integrations currently in the config:
-{integrations}
-
-For each integration, select appropriate hooks from the catalog. Consider:
-- Every integration needs: credential_resolve_hook, pre_auth_hook, retry_hook, on_failure_alert_hook
-- Bureau/KYC integrations additionally need: field_encryption_hook, post_schema_validation_hook
-- All integrations benefit from: post_transform_hook, audit_emit_hook
-- Simulation mode needs: simulation_intercept_hook
-
-Return JSON:
+Fill this integration config object completely:
 {{
-  "hook_assignments": [
+  "integration_id": "keep existing value",
+  "service_name": "keep existing value",
+  "adapter_id": "{adapter_id}",
+  "category": "from adapter",
+  "is_mandatory": true/false,
+  "status": "adapter_matched",
+  "selected_version": "{chosen_version}",
+  "endpoint_url": "base_url + version endpoint from adapter JSON",
+  "auth_type": "from adapter JSON",
+  "credential_env_vars": ["$VAR references from adapter JSON"],
+  "timeout_ms": "from adapter JSON",
+  "retry_policy": {{}},
+  "sandbox_url": "sandbox_base_url from adapter JSON",
+  "fallback_adapter": "from adapter JSON",
+  "deprecated": "true/false from selected version entry",
+  "sunset_date": "from selected version entry or null",
+  "field_mapping": [
     {{
-      "integration_id": "the integration id",
-      "adapter_id": "the adapter id", 
-      "assigned_hooks": ["hook_id_1", "hook_id_2", ...]
+      "user_field": "field from BRD input_fields_mentioned",
+      "api_field": "corresponding field from adapter required_fields/optional_fields",
+      "mapping_type": "direct/rename/computed/missing",
+      "description": "why this mapping",
+      "_mapping_reason": "detailed explanation"
     }}
-  ]
+  ],
+  "transformation_rules": [
+    {{
+      "source_field": "input field",
+      "target_field": "output field",
+      "rule_type": "type_cast/encrypt/format/compute",
+      "rule": "description",
+      "example": "example transformation"
+    }}
+  ],
+  "hooks": [],
+  "_adapter_reason": "why this adapter was chosen",
+  "_version_reason": "why this version was chosen"
 }}
-"""
+
+FIELD MAPPING RULES:
+- Map ALL required_fields from the adapter — if a BRD field covers it, map it (direct/rename)
+- If a required adapter field has NO BRD data, include it with mapping_type="missing"
+- Generate encryption transformation_rules for PII fields (PAN, Aadhaar, DOB, phone)
+- If BRD mentions a version that is deprecated, select the latest non-deprecated version instead
+
+Return ONLY the JSON object above (one integration entry, not the whole config)."""
+
+HOOK_PICK_SYSTEM = """You are a hook selection engine for enterprise integrations.
+You receive top-5 semantically retrieved hook candidates for ONE integration.
+Select the appropriate hooks from the candidates list.
+Mandatory hooks to include if present in candidates:
+  credential_resolve_hook, pre_auth_hook, retry_hook, on_failure_alert_hook, audit_emit_hook
+Additional for bureau/kyc: field_encryption_hook, post_schema_validation_hook
+Always use hook IDs exactly as listed in candidates."""
+
+HOOK_PICK_PROMPT = """Integration context:
+{integration_info}
+
+Top-5 hook candidates (ranked by semantic similarity):
+{candidates}
+
+Select appropriate hooks for this integration. Return JSON:
+{{
+  "assigned_hooks": ["hook_id_1", "hook_id_2", ...]
+}}"""
 
 HOOK_FILL_SYSTEM = """You are a hook configuration engine.
-Populate hook entries in the integration config with details from the hook catalog files.
-Each hook should have lifecycle_state set to 'registered'."""
+Populate the hooks array for ONE integration using the full hook catalog JSONs.
+Each hook entry must include all fields from the hook JSON.
+Set lifecycle_state to 'registered' for all hooks."""
 
-HOOK_FILL_PROMPT = """Here is the current config:
-{current_config}
+HOOK_FILL_PROMPT = """Integration:
+{integration_info}
 
-Here are the hook assignments:
-{hook_assignments}
+Assigned hook IDs: {hook_ids}
 
-Here are the full hook catalog entries for assigned hooks:
+Full hook catalog data:
 {hook_details}
 
-For each integration in the config, populate its "hooks" array with the assigned hooks. Each hook entry should include:
-{{
-  "hook_id": "from catalog",
-  "hook_name": "from catalog",
-  "hook_type": "from catalog",
-  "lifecycle_state": "registered",
-  "execution_order": from catalog,
-  "is_blocking": from catalog,
-  "trigger_condition": "from catalog",
-  "timeout_ms": from catalog
-}}
+Return the populated hooks array for this integration:
+[
+  {{
+    "hook_id": "from catalog",
+    "hook_name": "from catalog",
+    "hook_type": "from catalog",
+    "lifecycle_state": "registered",
+    "execution_order": 1,
+    "is_blocking": true,
+    "trigger_condition": "from catalog",
+    "timeout_ms": 5000
+  }}
+]
 
-Return the COMPLETE updated config JSON."""
+Return ONLY the JSON array of hook objects."""
 
-FIELD_MAPPING_SYSTEM = """You are a field mapping and transformation rule engine.
-Map user-side fields from BRD documents to API-side fields from adapter schemas.
-Generate transformation rules for type conversions, encryptions, and computed fields.
-IMPORTANT: For every mapping decision, add a reasoning annotation. For missing required fields, mark them clearly."""
 
-FIELD_MAPPING_PROMPT = """Here is the current config:
-{current_config}
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
-Here are the requirements with detected fields:
-{requirements}
+def _build_adapter_search_query(service: dict) -> str:
+    """
+    Build a natural-language search query for vector search.
+    Only uses purpose/category/provider signals — NOT input fields or
+    field names, which are irrelevant for finding the right adapter.
+    """
+    parts = []
 
-Here are the adapter schemas for matched integrations:
-{adapter_schemas}
+    # Core: what the service does and why
+    if service.get("purpose"):
+        parts.append(f"Purpose: {service['purpose']}.")
 
-For each integration in the config, generate:
+    # Provider name is the strongest signal (e.g. "CIBIL", "Razorpay")
+    if service.get("provider"):
+        parts.append(f"Provider: {service['provider']}.")
 
-1. field_mapping[] — maps user fields to API fields:
-   {{
-     "user_field": "field name from BRD/user",
-     "api_field": "field name expected by the API",
-     "mapping_type": "direct/rename/computed/missing",
-     "description": "why this mapping exists",
-     "_mapping_reason": "Explain why this mapping was chosen. For 'missing' type, explain why the field could not be mapped."
-   }}
+    # Exact API name from BRD (strongest signal if available)
+    if service.get("exact_api_name_from_doc"):
+        parts.append(f"API name from document: {service['exact_api_name_from_doc']}.")
 
-   **IMPORTANT for missing fields:**
-   - If a REQUIRED field from the adapter schema cannot be mapped to any user field from the BRD, set mapping_type to "missing" and set user_field to "" (empty).
-   - In the _mapping_reason, explain: "Required API field '<field_name>' has no corresponding data in the BRD document. This must be provided at runtime."
-   - This ensures the reviewer knows which required fields are NOT covered by the BRD.
+    # Service name
+    if service.get("service_name"):
+        parts.append(f"Service: {service['service_name']}.")
 
-2. transformation_rules[] — data transformations needed:
-   {{
-     "source_field": "input field",
-     "target_field": "output field",  
-     "rule_type": "type_cast/encrypt/format/compute",
-     "rule": "description of the transformation",
-     "example": "e.g. encrypt(pan_number) → tax_identifier_encrypted"
-   }}
+    # Category for pre-filtering
+    if service.get("category"):
+        parts.append(f"Category: {service['category']}.")
 
-Important: 
-- Map ALL required fields from the adapter schema — if a required field can't be mapped, include it with mapping_type "missing"
-- Generate transformation rules where types don't match directly
-- PII fields (PAN, Aadhaar, etc.) should have encryption transformation rules
+    # Compliance/regulatory context helps (e.g. "RBI KYC" → bureau/kyc adapters)
+    if service.get("compliance_requirements"):
+        parts.append(f"Compliance: {', '.join(service['compliance_requirements'][:3])}.")
 
-Return the COMPLETE updated config JSON with field_mapping and transformation_rules filled for each integration."""
+    # Auth type hint
+    if service.get("auth_type_hint"):
+        parts.append(f"Auth: {service['auth_type_hint']}.")
 
+    return " ".join(parts) if parts else service.get("service_name", "unknown service")
+
+
+def _build_hook_search_query(integration: dict) -> str:
+    """Build a search query for hook matching from an integration dict."""
+    parts = [
+        f"Integration: {integration.get('service_name', '')}.",
+        f"Category: {integration.get('category', '')}.",
+        f"Adapter: {integration.get('adapter_id', '')}.",
+    ]
+    if integration.get("is_mandatory"):
+        parts.append("This is a mandatory integration.")
+    # Compliance context strengthens hook matching (e.g. RBI → audit_emit, field_encryption)
+    compliance = integration.get("compliance_requirements") or []
+    if compliance:
+        parts.append(f"Compliance requirements: {', '.join(compliance)}.")
+    # Auth type informs pre_auth_hook relevance
+    auth = integration.get("auth_type")
+    if auth:
+        parts.append(f"Authentication: {auth}.")
+    return " ".join(parts)
+
+
+def _slim_service_info(service: dict) -> dict:
+    """Return a compact service info dict for LLM prompts to stay within token limits."""
+    return {
+        "service_name": service.get("service_name"),
+        "provider": service.get("provider"),
+        "exact_api_name": service.get("exact_api_name_from_doc"),
+        "category": service.get("category"),
+        "purpose": service.get("purpose"),
+        "version_hint": service.get("version_hint"),
+        "version_is_explicit": service.get("version_is_explicit", False),
+        "auth_type_hint": service.get("auth_type_hint"),
+        "input_fields_mentioned": service.get("input_fields_mentioned", []),
+        "output_fields_mentioned": service.get("output_fields_mentioned", []),
+        "compliance_requirements": service.get("compliance_requirements", []),
+        "hook_signals": service.get("hook_signals", []),
+        "confidence": service.get("confidence"),
+        "additional_context": service.get("additional_context"),
+    }
+
+
+def _slim_integration_info(integration: dict) -> dict:
+    """Return a compact integration info dict for hook prompts."""
+    return {
+        "integration_id": integration.get("integration_id"),
+        "service_name": integration.get("service_name"),
+        "adapter_id": integration.get("adapter_id"),
+        "category": integration.get("category"),
+        "is_mandatory": integration.get("is_mandatory"),
+        "status": integration.get("status"),
+    }
+
+
+def _load_hook_index(hook_index_cache: Optional[dict] = None) -> dict:
+    """Load hook master index (cached across calls within one Stage 3 run)."""
+    if hook_index_cache is not None:
+        return hook_index_cache
+    return json.loads(HOOK_MASTER_INDEX.read_text(encoding="utf-8"))
+
+
+# ── Main Entry Point ─────────────────────────────────────────────────────────
 
 def run_stage3(client_id: str, requirements: dict) -> dict:
     """
     Execute Stage 3 — Catalog Matching & Config Enrichment.
-    
-    6 sub-steps as specified.
-    
+
+    Each service is processed independently (not batched) so each gets
+    the full adapter JSON and precise field mapping.
+
     Args:
         client_id: The client folder ID
         requirements: Output from Stage 2
-        
+
     Returns:
         The enriched config dict
     """
@@ -211,262 +299,326 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
     print(f"  Stage 3 — Catalog Matching & Config Enrichment")
     print(f"{'='*60}")
 
+    services_detected = requirements.get("services_detected", [])
+    using_vector = vector_is_available()
+
+    # Build adapter path lookup by scanning the directory directly.
+    # This ensures newly added adapter JSONs are found without updating master_index,
+    # and that IDs always match file stems (same as vector_service.py).
+    adapter_id_to_path: dict = {
+        p.stem: p.name
+        for p in ADAPTERS_CATALOG_DIR.glob("*.json")
+        if p.name != "master_index.json" and p.name != "embeddings_cache.json"
+    }
+
+    # Also load master_index for fallback candidate list (when vector search fails)
     adapter_index = json.loads(ADAPTER_MASTER_INDEX.read_text(encoding="utf-8"))
-    hook_index = json.loads(HOOK_MASTER_INDEX.read_text(encoding="utf-8"))
 
-    # ── 3a: Adapter Matching ──────────────────────────────────────────────
-    print(f"\n  🔍 Step 3a: Matching adapters...")
+    low_confidence_services: list = []
 
-    match_prompt = ADAPTER_MATCH_PROMPT.format(
-        requirements=json.dumps(requirements, indent=2),
-        adapter_index=json.dumps(adapter_index, indent=2),
-    )
+    # ── Per-service loop: 3a → 3b → 3c → 3d ─────────────────────────────
+    for service in services_detected:
+        svc_name = service.get("service_name", "unknown")
+        print(f"\n  {'─'*55}")
+        print(f"  🔧 Processing service: {svc_name}")
 
-    match_result = call_llm_json(
-        prompt=match_prompt,
-        system_instruction=ADAPTER_MATCH_SYSTEM,
-    )
+        # ── 3a: Build search query & run vector search ────────────────
+        print(f"     🔍 3a: Vector search for best adapter...")
+        search_query = _build_adapter_search_query(service)
+        print(f"        Query: \"{search_query[:120]}...\"" if len(search_query) > 120
+              else f"        Query: \"{search_query}\"")
 
-    matched = match_result.get("matched_adapters", [])
-    print(f"     ✅ Matched {len(matched)} adapters:")
-    for m in matched:
-        print(f"        • {m['service_name']} → {m['adapter_id']} ({m['recommended_version']})")
+        if using_vector:
+            candidates = search_adapters(
+                query=search_query,
+                category=service.get("category"),
+                top_k=VECTOR_TOP_K_ADAPTERS,
+            )
+            if not candidates:
+                # Fallback: provide all adapters in category or full index
+                print(f"        ⚠️  No vector hits — falling back to full adapter index")
+                candidates = [
+                    {
+                        "adapter_id": a["id"],
+                        "name": a["name"],
+                        "category": a.get("category", ""),
+                        "versions": a.get("versions", []),
+                        "maturity_score": a.get("maturity_score", 0),
+                        "path": a.get("path", ""),
+                        "semantic_similarity_score": 0.0,
+                        "low_confidence": True,
+                    }
+                    for a in adapter_index.get("adapters", [])[:VECTOR_TOP_K_ADAPTERS]
+                ]
+        else:
+            # Fallback: take first N adapters from index matching the category
+            print(f"        📦 Fallback: vector service unavailable")
+            all_adapters = adapter_index.get("adapters", [])
+            cat = (service.get("category") or "").lower()
+            filtered = [a for a in all_adapters if a.get("category", "").lower() == cat]
+            pool = filtered[:VECTOR_TOP_K_ADAPTERS] if filtered else all_adapters[:VECTOR_TOP_K_ADAPTERS]
+            candidates = [
+                {
+                    "adapter_id": a["id"],
+                    "name": a["name"],
+                    "category": a.get("category", ""),
+                    "versions": a.get("versions", []),
+                    "maturity_score": a.get("maturity_score", 0),
+                    "path": a.get("path", ""),
+                    "semantic_similarity_score": 0.0,
+                    "low_confidence": True,
+                }
+                for a in pool
+            ]
 
-    emit_audit_event(
-        client_id=client_id,
-        stage="stage_3_matching",
-        action=f"Adapter matching: {len(matched)} adapters matched",
-        agent="gemini_flash_lite",
-        input_data=json.dumps(requirements)[:200],
-        output_data=json.dumps(match_result)[:200],
-    )
+        # Log candidates
+        for c in candidates:
+            flag = " ⚠️LOW" if c.get("low_confidence") else ""
+            print(f"        → {c['adapter_id']} (score={c.get('semantic_similarity_score', 0):.3f}){flag}")
 
-    # ── 3b: Selective File Fetch ──────────────────────────────────────────
-    print(f"\n  📂 Step 3b: Fetching matched adapter files...")
+        if candidates and candidates[0].get("low_confidence"):
+            low_confidence_services.append(svc_name)
 
-    adapter_details = {}
-    adapter_id_to_path = {a["id"]: a["path"] for a in adapter_index.get("adapters", [])}
+        # ── 3b: LLM picks the best adapter from top-3 ────────────────
+        print(f"     🤖 3b: LLM selecting best adapter...")
+        pick_prompt = ADAPTER_PICK_PROMPT.format(
+            service_info=json.dumps(_slim_service_info(service), indent=2),
+            candidates=json.dumps(candidates, indent=2),
+        )
+        pick_result = call_llm_json(
+            prompt=pick_prompt,
+            system_instruction=ADAPTER_PICK_SYSTEM,
+        )
+        chosen_adapter_id = pick_result.get("adapter_id", "unmatched")
+        chosen_version = pick_result.get("recommended_version", "")
+        match_reason = pick_result.get("reason", "")
+        print(f"        ✅ Chosen: {chosen_adapter_id} v{chosen_version}")
+        print(f"           Reason: {match_reason[:100]}")
 
-    for m in matched:
-        aid = m["adapter_id"]
-        if aid in adapter_id_to_path:
-            adapter_file = ADAPTERS_CATALOG_DIR / adapter_id_to_path[aid]
+        # ── 3c: Fetch FULL adapter JSON ───────────────────────────────
+        adapter_json = None
+        if chosen_adapter_id != "unmatched" and chosen_adapter_id in adapter_id_to_path:
+            adapter_file = ADAPTERS_CATALOG_DIR / adapter_id_to_path[chosen_adapter_id]
             if adapter_file.exists():
-                adapter_details[aid] = json.loads(adapter_file.read_text(encoding="utf-8"))
-                print(f"     📄 Loaded {adapter_file.name}")
+                adapter_json = json.loads(adapter_file.read_text(encoding="utf-8"))
+                print(f"     📄 3c: Loaded full adapter: {adapter_file.name}")
             else:
-                print(f"     ⚠️  Adapter file not found: {adapter_file}")
+                print(f"     ⚠️  3c: Adapter file not found: {adapter_file}")
         else:
-            print(f"     ⚠️  Adapter ID not in index: {aid}")
+            print(f"     ⚠️  3c: Adapter '{chosen_adapter_id}' not in catalog — config will be partial")
 
-    # ── 3c: Config Fill ───────────────────────────────────────────────────
-    print(f"\n  📝 Step 3c: Enriching config with adapter details...")
+        # ── 3d: LLM fills config for this service ────────────────────
+        print(f"     📝 3d: Filling config + field mapping for {svc_name}...")
+        current_config = get_latest_config(client_id)
 
-    current_config = get_latest_config(client_id)
-    fill_prompt = CONFIG_FILL_PROMPT.format(
-        current_config=json.dumps(current_config, indent=2),
-        adapter_details=json.dumps(adapter_details, indent=2),
-        requirements=json.dumps(requirements, indent=2),
-    )
+        if adapter_json is not None:
+            fill_prompt = INTEGRATION_FILL_PROMPT.format(
+                service_info=json.dumps(_slim_service_info(service), indent=2),
+                adapter_json=json.dumps(adapter_json, indent=2),
+                chosen_version=chosen_version,
+                match_reason=match_reason,
+                adapter_id=chosen_adapter_id,
+            )
+            filled_integration = call_llm_json(
+                prompt=fill_prompt,
+                system_instruction=INTEGRATION_FILL_SYSTEM,
+            )
 
-    enriched_config = call_llm_json(
-        prompt=fill_prompt,
-        system_instruction=CONFIG_FILL_SYSTEM,
-    )
-
-    # Validate and fallback
-    if isinstance(enriched_config, list):
-        generated_integrations = enriched_config
-    elif isinstance(enriched_config, dict):
-        generated_integrations = enriched_config.get("integrations", [])
-    else:
-        generated_integrations = []
-
-    for old_integ in current_config.get("integrations", []):
-        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
-        for new_integ in generated_integrations:
-            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
-            if old_id and new_id and old_id == new_id:
-                old_integ.update(new_integ)
-                break
-        
-        # Enforce exact adapter_id from step 3a matching
-        for m in matched:
-            if m.get("service_name") == old_integ.get("service_name"):
-                old_integ["adapter_id"] = m.get("adapter_id")
-                if not old_integ.get("selected_version"):
-                    old_integ["selected_version"] = m.get("recommended_version")
-
-    enriched_config = current_config
-
-    # ── Deterministic enforcement: deprecated + sunset_date ───────────
-    # LLM may omit these fields; force-set them from adapter catalog data.
-    for integ in enriched_config.get("integrations", []):
-        aid = integ.get("adapter_id", "")
-        sel_ver = integ.get("selected_version", "")
-        if aid in adapter_details:
-            for ver_entry in adapter_details[aid].get("versions", []):
-                if ver_entry.get("version") == sel_ver:
-                    integ["deprecated"] = ver_entry.get("deprecated", False)
-                    integ["sunset_date"] = ver_entry.get("sunset_date", None)
-                    break
-            else:
-                # Version not found — default to not deprecated
-                integ.setdefault("deprecated", False)
-                integ.setdefault("sunset_date", None)
+            # If LLM returned a list, take first item
+            if isinstance(filled_integration, list):
+                filled_integration = filled_integration[0] if filled_integration else {}
         else:
-            integ.setdefault("deprecated", False)
-            integ.setdefault("sunset_date", None)
-
-    save_config(client_id, enriched_config)
-    print(f"     ✅ Config enriched with adapter details (incl. deprecated + sunset_date)")
-
-    emit_audit_event(
-        client_id=client_id,
-        stage="stage_3_matching",
-        action="Config enriched with adapter endpoints, auth, and retry policies",
-        agent="gemini_flash_lite",
-    )
-
-    # ── 3d: Hook Matching ─────────────────────────────────────────────────
-    print(f"\n  🪝 Step 3d: Matching hooks for integrations...")
-
-    current_config = get_latest_config(client_id)
-    hook_match_prompt = HOOK_MATCH_PROMPT.format(
-        hook_index=json.dumps(hook_index, indent=2),
-        integrations=json.dumps(current_config.get("integrations", []), indent=2),
-    )
-
-    hook_match_result = call_llm_json(
-        prompt=hook_match_prompt,
-        system_instruction=HOOK_MATCH_SYSTEM,
-    )
-
-    hook_assignments = hook_match_result.get("hook_assignments", [])
-    print(f"     ✅ Hook assignments for {len(hook_assignments)} integrations")
-
-    # ── 3e: Hook Fetch + Fill ─────────────────────────────────────────────
-    print(f"\n  🪝 Step 3e: Fetching and filling hook details...")
-
-    # Collect all unique hook IDs
-    all_hook_ids = set()
-    for ha in hook_assignments:
-        for hid in ha.get("assigned_hooks", []):
-            all_hook_ids.add(hid)
-
-    hook_id_to_path = {h["id"]: h["path"] for h in hook_index.get("hooks", [])}
-    hook_details = {}
-    for hid in all_hook_ids:
-        if hid in hook_id_to_path:
-            hook_file = HOOKS_CATALOG_DIR / hook_id_to_path[hid]
-            if hook_file.exists():
-                hook_details[hid] = json.loads(hook_file.read_text(encoding="utf-8"))
-                print(f"     📄 Loaded {hook_file.name}")
-
-    current_config = get_latest_config(client_id)
-    hook_fill_prompt = HOOK_FILL_PROMPT.format(
-        current_config=json.dumps(current_config, indent=2),
-        hook_assignments=json.dumps(hook_assignments, indent=2),
-        hook_details=json.dumps(hook_details, indent=2),
-    )
-
-    config_with_hooks = call_llm_json(
-        prompt=hook_fill_prompt,
-        system_instruction=HOOK_FILL_SYSTEM,
-    )
-
-    if isinstance(config_with_hooks, list):
-        generated_integrations = config_with_hooks
-    elif isinstance(config_with_hooks, dict):
-        generated_integrations = config_with_hooks.get("integrations", [])
-    else:
-        generated_integrations = []
-
-    for old_integ in current_config.get("integrations", []):
-        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
-        for new_integ in generated_integrations:
-            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
-            if old_id and new_id and old_id == new_id:
-                if "hooks" in new_integ:
-                    old_integ["hooks"] = new_integ["hooks"]
-                break
-    config_with_hooks = current_config
-
-    save_config(client_id, config_with_hooks)
-    print(f"     ✅ Hooks populated in config")
-
-    emit_audit_event(
-        client_id=client_id,
-        stage="stage_3_matching",
-        action=f"Hooks assigned: {len(all_hook_ids)} unique hooks across {len(hook_assignments)} integrations",
-        agent="gemini_flash_lite",
-    )
-
-    # ── 3f: Field Mapping + Transformation Rules ─────────────────────────
-    print(f"\n  🗺️  Step 3f: Generating field mappings and transformation rules...")
-
-    current_config = get_latest_config(client_id)
-    
-    # Build adapter schemas for matched integrations
-    adapter_schemas = {}
-    for integration in current_config.get("integrations", []):
-        aid = integration.get("adapter_id", "")
-        if aid in adapter_details:
-            adapter_schemas[aid] = {
-                "required_fields": adapter_details[aid].get("required_fields", []),
-                "optional_fields": adapter_details[aid].get("optional_fields", []),
-                "response_schema": adapter_details[aid].get("response_schema", {}),
+            # No adapter JSON — build a minimal integration entry
+            filled_integration = {
+                "adapter_id": chosen_adapter_id,
+                "status": "adapter_matched" if chosen_adapter_id != "unmatched" else "unmatched",
+                "selected_version": chosen_version,
+                "_adapter_reason": match_reason,
+                "_version_reason": "No adapter file found in catalog",
             }
 
-    mapping_prompt = FIELD_MAPPING_PROMPT.format(
-        current_config=json.dumps(current_config, indent=2),
-        requirements=json.dumps(requirements, indent=2),
-        adapter_schemas=json.dumps(adapter_schemas, indent=2),
-    )
+        # Deterministic enforcement: deprecated + sunset_date from adapter JSON
+        if adapter_json and chosen_version:
+            for ver_entry in adapter_json.get("versions", []):
+                if ver_entry.get("version") == chosen_version:
+                    filled_integration["deprecated"] = ver_entry.get("deprecated", False)
+                    filled_integration["sunset_date"] = ver_entry.get("sunset_date", None)
+                    break
+            else:
+                filled_integration.setdefault("deprecated", False)
+                filled_integration.setdefault("sunset_date", None)
 
-    config_with_mappings = call_llm_json(
-        prompt=mapping_prompt,
-        system_instruction=FIELD_MAPPING_SYSTEM,
-    )
-
-    if isinstance(config_with_mappings, list):
-        generated_integrations = config_with_mappings
-    elif isinstance(config_with_mappings, dict):
-        generated_integrations = config_with_mappings.get("integrations", [])
-    else:
-        generated_integrations = []
-
-    for old_integ in current_config.get("integrations", []):
-        old_id = old_integ.get("integration_id") or old_integ.get("service_name")
-        for new_integ in generated_integrations:
-            new_id = new_integ.get("integration_id") or new_integ.get("service_name")
-            if old_id and new_id and old_id == new_id:
-                if "field_mapping" in new_integ:
-                    old_integ["field_mapping"] = new_integ["field_mapping"]
-                if "transformation_rules" in new_integ:
-                    old_integ["transformation_rules"] = new_integ["transformation_rules"]
+        # Merge into the integration that matches this service
+        for integ in current_config.get("integrations", []):
+            if integ.get("service_name") == svc_name or integ.get("integration_id") == service.get("integration_id"):
+                integ.update(filled_integration)
+                # Always enforce adapter_id from step 3b (LLM can't override)
+                integ["adapter_id"] = chosen_adapter_id
+                integ["selected_version"] = chosen_version
                 break
-    config_with_mappings = current_config
+        else:
+            # Service not found in current config (shouldn't happen) — append
+            filled_integration.setdefault("integration_id", svc_name.lower().replace(" ", "_"))
+            filled_integration.setdefault("service_name", svc_name)
+            filled_integration.setdefault("category", service.get("category", ""))
+            filled_integration.setdefault("is_mandatory", service.get("is_mandatory", True))
+            filled_integration.setdefault("hooks", [])
+            filled_integration.setdefault("field_mapping", [])
+            filled_integration.setdefault("transformation_rules", [])
+            current_config.setdefault("integrations", []).append(filled_integration)
 
-    save_config(client_id, config_with_mappings)
+        save_config(client_id, current_config)
+        print(f"        ✅ Config updated for {svc_name}")
 
-    # Count total mappings
-    total_mappings = sum(
-        len(i.get("field_mapping", []))
-        for i in config_with_mappings.get("integrations", [])
-    )
-    total_rules = sum(
-        len(i.get("transformation_rules", []))
-        for i in config_with_mappings.get("integrations", [])
-    )
-    print(f"     ✅ Generated {total_mappings} field mappings and {total_rules} transformation rules")
+    # Store low-confidence flags for Stage 4 reasoning report
+    requirements["_low_confidence_matches"] = low_confidence_services
 
     emit_audit_event(
         client_id=client_id,
         stage="stage_3_matching",
-        action=f"Field mapping complete: {total_mappings} mappings, {total_rules} transformation rules",
+        action=f"Adapter matching complete: {len(services_detected)} services processed"
+               f" (vector={'yes' if using_vector else 'fallback'},"
+               f" low_confidence={len(low_confidence_services)})",
+        agent="gemini_flash_lite",
+        input_data=json.dumps({"services": [s.get("service_name") for s in services_detected]}),
+        output_data=json.dumps({"low_confidence": low_confidence_services}),
+    )
+
+    # ── Per-integration hook loop: 3e → 3f → 3g ──────────────────────────
+    print(f"\n  {'='*55}")
+    print(f"  🪝 Hook Matching — per integration")
+
+    hook_index = json.loads(HOOK_MASTER_INDEX.read_text(encoding="utf-8"))
+
+    # Build hook path lookup by scanning the directory directly.
+    # This avoids the master_index ID↔file-stem mismatch (e.g. "datadog_logging" → logging_hook.json).
+    # File stem is the canonical hook ID (same as vector_service.py).
+    hook_id_to_path: dict = {
+        p.stem: p.name
+        for p in HOOKS_CATALOG_DIR.glob("*.json")
+        if p.name != "master_index.json" and p.name != "embeddings_cache.json"
+    }
+    all_hook_ids_assigned: set = set()
+
+    current_config = get_latest_config(client_id)
+
+    for integration in current_config.get("integrations", []):
+        integ_id = integration.get("integration_id") or integration.get("service_name", "unknown")
+        print(f"\n  {'─'*55}")
+        print(f"  🪝 Hooks for: {integ_id}")
+
+        # ── 3e: Build hook search query & vector search ───────────────
+        print(f"     🔍 3e: Searching relevant hooks...")
+        hook_query = _build_hook_search_query(integration)
+
+        if vector_is_available():
+            hook_candidates = search_hooks(query=hook_query, top_k=VECTOR_TOP_K_HOOKS)
+        else:
+            # Fallback: use all hooks from catalog directory (not master_index)
+            # so IDs (file stems) are consistent with what vector search returns.
+            hook_candidates = [
+                {
+                    "hook_id": p.stem,
+                    "name": p.stem.replace("_", " ").title(),
+                    "type": "",
+                    "path": p.name,
+                    "semantic_similarity_score": 0.0,
+                }
+                for p in sorted(HOOKS_CATALOG_DIR.glob("*.json"))
+                if p.name not in ("master_index.json", "embeddings_cache.json")
+            ][:VECTOR_TOP_K_HOOKS]
+
+        hook_ids_preview = [c.get("hook_id", c.get("id", "?")) for c in hook_candidates]
+        print(f"        Candidates: {', '.join(hook_ids_preview)}")
+
+        # ── 3f: LLM picks hooks for this integration ──────────────────
+        print(f"     🤖 3f: LLM selecting hooks...")
+        hook_pick_prompt = HOOK_PICK_PROMPT.format(
+            integration_info=json.dumps(_slim_integration_info(integration), indent=2),
+            candidates=json.dumps(hook_candidates, indent=2),
+        )
+        hook_pick_result = call_llm_json(
+            prompt=hook_pick_prompt,
+            system_instruction=HOOK_PICK_SYSTEM,
+        )
+        assigned_hook_ids = hook_pick_result.get("assigned_hooks", [])
+        print(f"        ✅ Assigned: {', '.join(assigned_hook_ids)}")
+        all_hook_ids_assigned.update(assigned_hook_ids)
+
+        # ── 3g: Fetch full hook JSONs & fill hook config ──────────────
+        print(f"     📄 3g: Loading hook files and filling config...")
+        hook_details = {}
+        for hid in assigned_hook_ids:
+            if hid in hook_id_to_path:
+                hook_file = HOOKS_CATALOG_DIR / hook_id_to_path[hid]
+                if hook_file.exists():
+                    hook_details[hid] = json.loads(hook_file.read_text(encoding="utf-8"))
+                else:
+                    print(f"        ⚠️  Hook file not found: {hook_file}")
+            else:
+                print(f"        ⚠️  Hook '{hid}' not in catalog index")
+
+        if hook_details:
+            hook_fill_prompt = HOOK_FILL_PROMPT.format(
+                integration_info=json.dumps(_slim_integration_info(integration), indent=2),
+                hook_ids=json.dumps(assigned_hook_ids),
+                hook_details=json.dumps(hook_details, indent=2),
+            )
+            filled_hooks = call_llm_json(
+                prompt=hook_fill_prompt,
+                system_instruction=HOOK_FILL_SYSTEM,
+            )
+            if isinstance(filled_hooks, list):
+                integration["hooks"] = filled_hooks
+            elif isinstance(filled_hooks, dict) and "hooks" in filled_hooks:
+                integration["hooks"] = filled_hooks["hooks"]
+            else:
+                # Minimal fallback: build hook stubs from catalog data
+                integration["hooks"] = [
+                    {
+                        "hook_id": hid,
+                        "hook_name": hook_details[hid].get("hook_name", hid),
+                        "hook_type": hook_details[hid].get("hook_type", ""),
+                        "lifecycle_state": "registered",
+                        "execution_order": hook_details[hid].get("execution_order", 99),
+                        "is_blocking": hook_details[hid].get("is_blocking", False),
+                        "trigger_condition": hook_details[hid].get("trigger_condition", ""),
+                        "timeout_ms": hook_details[hid].get("timeout_ms", 5000),
+                    }
+                    for hid in assigned_hook_ids if hid in hook_details
+                ]
+        else:
+            integration["hooks"] = []
+
+        # Re-read config and update just this integration's hooks
+        current_config = get_latest_config(client_id)
+        for cfg_integ in current_config.get("integrations", []):
+            cfg_id = cfg_integ.get("integration_id") or cfg_integ.get("service_name")
+            if cfg_id == integ_id:
+                cfg_integ["hooks"] = integration["hooks"]
+                break
+        save_config(client_id, current_config)
+        print(f"        ✅ Hooks saved for {integ_id}: {len(integration['hooks'])} hooks")
+
+    emit_audit_event(
+        client_id=client_id,
+        stage="stage_3_matching",
+        action=f"Hook assignment complete: {len(all_hook_ids_assigned)} unique hooks"
+               f" across {len(current_config.get('integrations', []))} integrations",
         agent="gemini_flash_lite",
     )
 
-    print(f"\n  ✅ Stage 3 complete")
-    return config_with_mappings
+    final_config = get_latest_config(client_id)
+
+    # ── Summary ───────────────────────────────────────────────────────────
+    print(f"\n  {'='*55}")
+    print(f"  ✅ Stage 3 complete")
+    total_mappings = sum(len(i.get("field_mapping", [])) for i in final_config.get("integrations", []))
+    total_rules = sum(len(i.get("transformation_rules", [])) for i in final_config.get("integrations", []))
+    total_hooks = sum(len(i.get("hooks", [])) for i in final_config.get("integrations", []))
+    print(f"     Integrations: {len(final_config.get('integrations', []))}")
+    print(f"     Field mappings: {total_mappings}")
+    print(f"     Transformation rules: {total_rules}")
+    print(f"     Hooks: {total_hooks}")
+
+    return final_config

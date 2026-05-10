@@ -1,10 +1,29 @@
 {
   "adapter_name": "RiskGuard Analytics Engine",
   "category": "fraud",
-  "description": "Internal fraud detection engine evaluating multi-dimensional risk.",
   "provider": "RiskGuard Analytics",
-  "base_url": "https://api.riskguard.internal",
+  "description": "Multi-dimensional fraud detection and risk assessment engine that evaluates loan applicants for fraudulent behavior, synthetic identities, velocity abuse, device fingerprinting anomalies, and blacklist matches. Uses machine learning models combined with rule-based checks to produce a risk score and recommended action. Commonly integrated before loan disbursal to prevent first-party fraud, identity theft, mule account activity, and coordinated fraud rings. Also used in real-time transaction monitoring.",
+  "use_cases": [
+    "Pre-disbursal fraud screening for personal and business loans",
+    "Synthetic identity detection for new applicant onboarding",
+    "Device fingerprint and IP reputation scoring",
+    "Velocity check for repeated applications from same device or identity",
+    "Blacklist and negative list screening",
+    "Coordinated fraud ring detection",
+    "Real-time transaction fraud scoring",
+    "High-risk application routing to manual review"
+  ],
+  "semantic_tags": [
+    "fraud detection", "risk scoring", "RiskGuard", "fraud prevention", "synthetic identity",
+    "device fingerprint", "velocity check", "blacklist", "money mule", "identity theft",
+    "loan fraud", "application fraud", "ML fraud model", "fraud risk", "negative list",
+    "IP reputation", "fraud ring", "first party fraud", "AML screening"
+  ],
+  "compliance_context": "Supports RBI fraud monitoring requirements and PMLA obligations. Audit logs all risk decisions for regulatory review.",
+  "typical_callers": "Lending platforms, digital banks, BNPL providers, insurance underwriters, payment processors screening high-value transactions",
+  "auth_description": "Bearer token authentication. Static or rotating bearer token passed in Authorization header.",
   "auth_type": "bearer_token",
+  "base_url": "https://api.riskguard.internal",
   "credential_env_vars": [
     "RISKGUARD_BEARER_TOKEN"
   ],
@@ -24,7 +43,7 @@
       "status": "stable",
       "maturity_score": 8,
       "deprecated": false,
-      "release_notes": "ML based scoring including device fingerprinting",
+      "release_notes": "ML scoring with device fingerprinting",
       "sunset_date": "2028-03-31"
     },
     {
@@ -33,7 +52,7 @@
       "status": "beta",
       "maturity_score": 5,
       "deprecated": false,
-      "release_notes": "Includes synthetic identity correlation graphs",
+      "release_notes": "Synthetic identity correlation graphs",
       "sunset_date": null
     }
   ],
@@ -41,37 +60,37 @@
     {
       "field_name": "applicant_id",
       "type": "string",
-      "description": "Unique applicant or session tracking id",
+      "description": "Unique applicant or session tracking ID for velocity correlation",
       "validation": "Alphanumeric"
     },
     {
       "field_name": "pan_number",
       "type": "string",
-      "description": "Customer PAN",
+      "description": "Customer PAN for identity cross-reference and blacklist check",
       "validation": "10 char alphanumeric"
     },
     {
       "field_name": "mobile_number",
       "type": "string",
-      "description": "Mobile number",
+      "description": "Mobile number for velocity and telecom-based risk signals",
       "validation": "10 digit numeric"
     },
     {
       "field_name": "ip_address",
       "type": "string",
-      "description": "Originating IPv4 or IPv6",
-      "validation": "Valid IP Address"
+      "description": "Originating IP address for geolocation and IP reputation check",
+      "validation": "Valid IPv4 or IPv6"
     },
     {
       "field_name": "device_fingerprint",
       "type": "string",
-      "description": "Session generated hardware hash",
+      "description": "Hardware and browser hash for device identity tracking",
       "validation": "string"
     },
     {
       "field_name": "loan_amount_requested",
       "type": "integer",
-      "description": "Requested principal",
+      "description": "Requested loan principal for amount-based risk calibration",
       "validation": "Positive integer"
     }
   ],
@@ -79,70 +98,46 @@
     {
       "field_name": "email",
       "type": "string",
-      "description": "Email ID for breach checking",
+      "description": "Email address for breach database and dark web check",
       "default_value": "null"
     },
     {
       "field_name": "employment_type",
       "type": "string",
-      "description": "Self-employed or Salaried",
+      "description": "Self-employed or Salaried for income-risk calibration",
       "default_value": "null"
     },
     {
       "field_name": "pincode",
       "type": "string",
-      "description": "Current address PIN",
+      "description": "Current address PIN for geographic risk profiling",
       "default_value": "null"
     },
     {
       "field_name": "bureau_score",
       "type": "integer",
-      "description": "Previously fetched bureau score if available",
+      "description": "Previously fetched bureau score as an additional risk signal",
       "default_value": "0"
     }
   ],
   "response_schema": {
-    "risk_score": {
-      "type": "integer",
-      "description": "Score between 0 and 1000"
-    },
-    "risk_band": {
-      "type": "enum",
-      "description": "Enum: LOW/MEDIUM/HIGH/VERY_HIGH"
-    },
-    "fraud_flags": {
-      "type": "array",
-      "description": "Array of triggered fraud rules as strings"
-    },
-    "velocity_check_result": {
-      "type": "string",
-      "description": "Summary of repeated recent attempts"
-    },
-    "blacklist_match": {
-      "type": "boolean",
-      "description": "True if entity matches known bad lists"
-    },
-    "synthetic_identity_score": {
-      "type": "integer",
-      "description": "Probability of non-existent entity identity"
-    },
-    "recommended_action": {
-      "type": "enum",
-      "description": "Enum: APPROVE/REVIEW/REJECT"
-    }
+    "risk_score": { "type": "integer", "description": "Score 0-1000 (higher = more risk)" },
+    "risk_band": { "type": "enum", "description": "LOW / MEDIUM / HIGH / VERY_HIGH" },
+    "fraud_flags": { "type": "array", "description": "Triggered fraud rules as strings" },
+    "velocity_check_result": { "type": "string", "description": "Summary of repeated attempts" },
+    "blacklist_match": { "type": "boolean", "description": "True if entity is blacklisted" },
+    "synthetic_identity_score": { "type": "integer", "description": "Synthetic identity probability" },
+    "recommended_action": { "type": "enum", "description": "APPROVE / REVIEW / REJECT" }
   },
   "error_codes": {
-    "400": "Invalid IP address formatting or missing fields.",
-    "401": "Missing or invalid bearer token.",
-    "403": "Token does not have permission for risk evaluate.",
-    "429": "Rate limit exceeded on risk engine.",
+    "400": "Invalid IP or missing required fields.",
+    "401": "Invalid bearer token.",
+    "403": "Token lacks permission for risk evaluate.",
+    "429": "Rate limit exceeded.",
     "500": "Risk model engine timeout."
   },
   "timeout_ms": 4000,
-  "retry_policy": {
-    "max_retries": 1,
-    "backoff_strategy": "fixed"
-  },
+  "retry_policy": { "max_retries": 1, "backoff_strategy": "fixed" },
   "sandbox_base_url": "https://sandbox-api.riskguard.internal",
   "fallback_adapter": null
 }

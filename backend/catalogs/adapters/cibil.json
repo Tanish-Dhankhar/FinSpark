@@ -1,10 +1,28 @@
 {
   "adapter_name": "TransUnion CIBIL Bureau",
   "category": "bureau",
-  "description": "Pull primary credit reporting and scoring records.",
   "provider": "TransUnion CIBIL",
-  "base_url": "https://api.cibil.com",
+  "description": "Fetches credit scores and full bureau reports for individual borrowers from TransUnion CIBIL, India's most widely used credit bureau. Used in loan origination workflows to assess creditworthiness, repayment history, active loan accounts, days-past-due (DPD) patterns, and credit utilization. Mandated by most Indian lenders under RBI credit risk assessment guidelines. Provides a CIBIL score between 300-900; scores above 750 are typically considered prime.",
+  "use_cases": [
+    "Personal loan eligibility screening",
+    "Home loan creditworthiness check",
+    "Business loan guarantor verification",
+    "Credit card application underwriting",
+    "Borrower risk segmentation (prime, sub-prime, high-risk)",
+    "Pre-approval credit checks",
+    "Checking outstanding loans and default history before disbursal"
+  ],
+  "semantic_tags": [
+    "credit score", "CIBIL", "credit bureau", "creditworthiness", "loan underwriting",
+    "repayment history", "default check", "DPD", "days past due", "outstanding loans",
+    "bureau report", "hard enquiry", "credit risk", "TransUnion", "PAN verification",
+    "RBI compliance", "borrower eligibility", "lending decision"
+  ],
+  "compliance_context": "RBI Master Direction on Credit Information. Requires borrower consent before pull. Covered under Credit Information Companies (Regulation) Act, 2005.",
+  "typical_callers": "Banks, NBFCs, fintech lenders, microfinance institutions, co-lending platforms, digital lending apps, credit card issuers",
+  "auth_description": "OAuth2 client credentials flow. Client ID and secret exchanged for a bearer token before each API call.",
   "auth_type": "oauth2",
+  "base_url": "https://api.cibil.com",
   "credential_env_vars": [
     "CIBIL_OAUTH_CLIENT_ID",
     "CIBIL_OAUTH_CLIENT_SECRET"
@@ -42,25 +60,25 @@
     {
       "field_name": "pan_number",
       "type": "string",
-      "description": "Customer PAN",
+      "description": "Customer PAN for bureau identity lookup",
       "validation": "10 char alphanumeric"
     },
     {
       "field_name": "full_name",
       "type": "string",
-      "description": "Full name exactly as per PAN",
+      "description": "Full name exactly as per PAN card",
       "validation": "min length 3"
     },
     {
       "field_name": "date_of_birth",
       "type": "date",
-      "description": "Date of Birth",
+      "description": "Date of Birth for identity matching",
       "validation": "ISO 8601 date"
     },
     {
       "field_name": "mobile_number",
       "type": "string",
-      "description": "10 digit mobile number",
+      "description": "10 digit mobile number for cross-reference",
       "validation": "10 digit numeric"
     }
   ],
@@ -68,65 +86,38 @@
     {
       "field_name": "email",
       "type": "string",
-      "description": "Email ID for better matching",
+      "description": "Email ID for better identity matching",
       "default_value": "null"
     },
     {
       "field_name": "address",
       "type": "string",
-      "description": "Current address of the customer",
+      "description": "Current address for address-based deduplication",
       "default_value": "null"
     },
     {
       "field_name": "consent_timestamp",
       "type": "date",
-      "description": "When consent was given",
+      "description": "Timestamp when borrower provided consent for bureau pull",
       "default_value": "current_timestamp"
     },
     {
       "field_name": "enquiry_purpose",
       "type": "string",
-      "description": "Type of loan applied for",
+      "description": "Loan type for which enquiry is being made",
       "default_value": "PERSONAL_LOAN"
     }
   ],
   "response_schema": {
-    "cibil_score": {
-      "type": "integer",
-      "description": "Score between 300 to 900"
-    },
-    "score_version": {
-      "type": "string",
-      "description": "Underlying TU scoring model version"
-    },
-    "active_accounts": {
-      "type": "integer",
-      "description": "Number of currently active loan accounts"
-    },
-    "dpd_history": {
-      "type": "array",
-      "description": "Array of month-level arrays of Days Past Due objects"
-    },
-    "total_outstanding": {
-      "type": "integer",
-      "description": "Total principal outstanding across all loans"
-    },
-    "credit_utilization": {
-      "type": "integer",
-      "description": "Percentage utilization of revolving credit limits"
-    },
-    "enquiry_count": {
-      "type": "integer",
-      "description": "Count of hard enquiries in last 3 months"
-    },
-    "risk_category": {
-      "type": "string",
-      "description": "Label such as High Risk, Sub-prime, Prime etc."
-    },
-    "score_factors": {
-      "type": "array",
-      "description": "Array of strings explaining score drivers"
-    }
+    "cibil_score": { "type": "integer", "description": "Score between 300 to 900" },
+    "score_version": { "type": "string", "description": "Underlying TU scoring model version" },
+    "active_accounts": { "type": "integer", "description": "Number of currently active loan accounts" },
+    "dpd_history": { "type": "array", "description": "Month-level arrays of Days Past Due objects" },
+    "total_outstanding": { "type": "integer", "description": "Total principal outstanding across all loans" },
+    "credit_utilization": { "type": "integer", "description": "Percentage utilization of revolving credit limits" },
+    "enquiry_count": { "type": "integer", "description": "Count of hard enquiries in last 3 months" },
+    "risk_category": { "type": "string", "description": "Label such as High Risk, Sub-prime, Prime" },
+    "score_factors": { "type": "array", "description": "Array of strings explaining score drivers" }
   },
   "error_codes": {
     "400": "Invalid parameter provided in payload.",
@@ -136,10 +127,7 @@
     "500": "TU CIBIL underlying mainframe timeout."
   },
   "timeout_ms": 10000,
-  "retry_policy": {
-    "max_retries": 1,
-    "backoff_strategy": "exponential"
-  },
+  "retry_policy": { "max_retries": 1, "backoff_strategy": "exponential" },
   "sandbox_base_url": "https://sandbox-api.cibil.com",
   "fallback_adapter": "experian"
 }

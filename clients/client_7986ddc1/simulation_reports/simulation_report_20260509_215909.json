@@ -1,0 +1,82 @@
+{
+  "report_id": "sim_8ab40506",
+  "generated_at": "2026-05-09T16:29:01.584963+00:00",
+  "overall_confidence_score": 100,
+  "overall_passed": true,
+  "total_integrations_tested": 5,
+  "passed_count": 5,
+  "failed_count": 0,
+  "human_readable_summary": "The integration simulation for all five services (Karza, CIBIL, Perfios, RiskGuard, and Twilio) was successful. All mandatory fields were correctly mapped, transformation rules were applied as expected, and mock responses were successfully parsed. No critical failures or field mismatches were detected during the validation process.",
+  "recommended_actions": [
+    "Proceed to staging environment deployment",
+    "Verify production credential rotation policies",
+    "Monitor latency during initial production load"
+  ],
+  "integration_results": [
+    {
+      "integration_id": "karza-kyc-001",
+      "adapter_id": "karza",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "All fields mapped and transformations verified."
+    },
+    {
+      "integration_id": "TU-CIBIL-001",
+      "adapter_id": "cibil",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 5,
+      "total_required_fields": 5,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Date formatting and encryption rules applied successfully."
+    },
+    {
+      "integration_id": "perfios-aa-001",
+      "adapter_id": "perfios",
+      "version_tested": "v2",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Direct mappings verified against API schema."
+    },
+    {
+      "integration_id": "riskguard-analytics-001",
+      "adapter_id": "riskguard",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 6,
+      "total_required_fields": 6,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "Encryption rule for PAN verified."
+    },
+    {
+      "integration_id": "twilio-sms-integration-001",
+      "adapter_id": "twilio",
+      "version_tested": "v3",
+      "status": "passed",
+      "confidence_score": 100,
+      "fields_mapped_correctly": 4,
+      "total_required_fields": 4,
+      "type_mismatches": [],
+      "missing_mandatory_fields": [],
+      "transformation_rule_failures": [],
+      "notes": "SMS payload structure and encryption verified."
+    }
+  ]
+}

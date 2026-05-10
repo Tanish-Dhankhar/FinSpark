@@ -1,11 +1,22 @@
 {
   "hook_name": "post_schema_validation_hook",
   "hook_type": "validation",
-  "description": "Validates the transformed response against the adapter's known response_schema.",
-  "trigger_condition": "After post_transform_hook",
-  "applicable_adapters": [
-    "*"
+  "description": "Validates the transformed adapter response against the adapter's known response_schema from the catalog after post_transform_hook has run. Non-blocking — flags schema mismatches as warnings rather than failing the pipeline, allowing partial data to flow downstream. Ensures that any API changes (fields added, removed, or type-changed by the external provider) are detected and surfaced in the pipeline audit log. Useful for catching breaking changes in bureau APIs, GST API, and KYC adapters that update their response formats without notice.",
+  "use_cases": [
+    "Detecting when a bureau API drops a field from its response",
+    "Flagging type mismatches in adapter response for downstream data quality",
+    "Surfacing breaking API schema changes in credit bureau or GST adapters",
+    "Non-blocking data quality check on every API response",
+    "Audit logging of schema warnings for regulatory review"
   ],
+  "semantic_tags": [
+    "schema validation", "response validation", "data quality", "API contract",
+    "schema drift", "breaking change detection", "response schema", "post-call",
+    "field validation", "type check", "schema warning", "API compatibility"
+  ],
+  "when_to_use": "Attach to all adapters in production to catch upstream API schema changes. Non-blocking so it will not interrupt pipeline execution.",
+  "trigger_condition": "After post_transform_hook; validates the transformed response against the catalog's response_schema",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 2,
   "is_blocking": false,
@@ -20,53 +31,42 @@
       "param_name": "transformed_response",
       "type": "object",
       "required": true,
-      "description": "Response output after transformations",
+      "description": "Adapter response after post_transform_hook processing",
       "default_value": "{}"
     },
     {
       "param_name": "expected_response_schema",
       "type": "object",
       "required": true,
-      "description": "Schema model from the adapter catalog",
+      "description": "Response schema from the adapter catalog JSON",
       "default_value": "{}"
     },
     {
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Adapter Name",
+      "description": "Adapter name for schema lookup",
       "default_value": ""
     },
     {
       "param_name": "adapter_version",
       "type": "string",
       "required": true,
-      "description": "Version ID",
+      "description": "Adapter version for schema resolution",
       "default_value": ""
     }
   ],
   "output": {
-    "on_success": "schema_validation_passed: true",
-    "on_failure": "schema_warnings array with each mismatch described, pipeline continues"
+    "on_success": "schema_validation_passed: true; pipeline continues",
+    "on_failure": "schema_warnings array emitted with mismatch descriptions; pipeline continues"
   },
   "timeout_ms": 500,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Missing output field expected by schema.",
-    "HOOK_002": "Output field type mismatch.",
+    "HOOK_001": "Expected field missing from response.",
+    "HOOK_002": "Response field type mismatch.",
     "HOOK_003": "Nested schema structure discrepancy."
-  },
-  "example_log_entry": {
-    "hook_name": "post_schema_validation_hook",
-    "triggered_at": "2026-04-02T10:30:06Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "experian",
-    "result": "WARNING - schema_warnings attached: missing 'score_band' field in downstream response."
   }
 }

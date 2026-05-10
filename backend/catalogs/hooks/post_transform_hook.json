@@ -1,11 +1,22 @@
 {
   "hook_name": "post_transform_hook",
   "hook_type": "post-call",
-  "description": "Applies transformation_rules defined in the config to output a normalized response object.",
-  "trigger_condition": "Immediately after successful adapter API response received",
-  "applicable_adapters": [
-    "*"
+  "description": "Applies the transformation_rules defined in the adapter integration config to normalize and remap the raw API response into a canonical output format. Runs immediately after a successful adapter response is received. Supports field renaming, JSON path extraction, type casting, value defaulting, and nested object flattening. Enables the downstream pipeline stages to work with a consistent data structure regardless of which external API was called — abstracting away API-specific response format differences between CIBIL, Experian, Karza, and other adapters.",
+  "use_cases": [
+    "Normalizing credit score field names across CIBIL and Experian adapters",
+    "Extracting nested JSON paths from complex bureau API responses",
+    "Type casting string scores to integers for downstream processing",
+    "Flattening deeply nested GST return history arrays",
+    "Applying default values for optional response fields that were not returned"
   ],
+  "semantic_tags": [
+    "transformation", "response normalization", "field mapping", "JSON path",
+    "type casting", "post-call", "data normalization", "response mapping",
+    "canonical format", "ETL", "response enrichment", "adapter abstraction"
+  ],
+  "when_to_use": "Attach to all adapters. Transformation rules are defined per-adapter in the integration config and applied here.",
+  "trigger_condition": "Immediately after a successful adapter API response is received",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 1,
   "is_blocking": true,
@@ -20,53 +31,42 @@
       "param_name": "raw_response",
       "type": "object",
       "required": true,
-      "description": "Raw JSON response from downstream API",
+      "description": "Raw JSON response from the external adapter API",
       "default_value": "{}"
     },
     {
       "param_name": "transformation_rules",
       "type": "object",
       "required": true,
-      "description": "Config payload defining mappings and casts",
+      "description": "Config-defined rules for field mapping, type casting, and extraction",
       "default_value": "{}"
     },
     {
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Name of the target adapter",
+      "description": "Adapter name for rule resolution",
       "default_value": ""
     },
     {
       "param_name": "client_id",
       "type": "string",
       "required": true,
-      "description": "ID of the executing client tenant",
+      "description": "Client tenant ID for per-client rule isolation",
       "default_value": ""
     }
   ],
   "output": {
-    "on_success": "transformed_response (normalized), transformation_summary listing every rule applied",
-    "on_failure": "raw_response passed through unchanged, transformation_failure logged"
+    "on_success": "transformed_response (normalized) with transformation_summary of every applied rule",
+    "on_failure": "raw_response passed through unchanged; transformation_failure logged"
   },
   "timeout_ms": 2000,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Invalid JSON path expression in transformation rules.",
-    "HOOK_002": "Type casting failed (e.g. string to integer).",
-    "HOOK_003": "Attempted to transform entirely null payload."
-  },
-  "example_log_entry": {
-    "hook_name": "post_transform_hook",
-    "triggered_at": "2026-04-02T10:30:05Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "gst",
-    "result": "SUCCESS - Applied 5 transformation rules."
+    "HOOK_001": "Invalid JSON path expression in rules.",
+    "HOOK_002": "Type casting failed.",
+    "HOOK_003": "Attempted to transform null payload."
   }
 }

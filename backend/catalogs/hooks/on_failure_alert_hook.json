@@ -1,11 +1,22 @@
 {
   "hook_name": "on_failure_alert_hook",
   "hook_type": "on-failure",
-  "description": "Sends an alert payload to a configured internal webhook URL with full failure context.",
-  "trigger_condition": "Whenever any adapter call fails (network error, 4xx, 5xx, timeout)",
-  "applicable_adapters": [
-    "*"
+  "description": "Dispatches a structured failure alert to an operations webhook (Slack, PagerDuty, or custom) whenever an adapter call fails after all retries are exhausted. Provides full failure context including adapter name, version, error code, error message, client ID, and timestamp. Non-blocking — pipeline continues to the next step even if alert delivery fails. Critical for SRE on-call workflows and SLA breach detection. Commonly triggered after retry_hook exhausts its attempts, ensuring operations teams are immediately notified of integration failures in production.",
+  "use_cases": [
+    "Notifying SRE on-call when a credit bureau adapter fails permanently",
+    "Slack or PagerDuty alert on loan disbursal payment failure",
+    "Real-time ops notification for GST or KYC adapter outages",
+    "SLA breach alerting when critical adapters go down",
+    "Automated ticket creation on repeated adapter failures"
   ],
+  "semantic_tags": [
+    "failure alert", "ops alert", "SRE", "Slack notification", "PagerDuty",
+    "on-failure", "incident alert", "adapter failure", "webhook alert",
+    "failure notification", "ops escalation", "production alert"
+  ],
+  "when_to_use": "Attach to all critical adapters (bureau, KYC, payment, health records) in production to ensure operations teams are alerted on any unrecoverable failure.",
+  "trigger_condition": "When any adapter call fails after all retries are exhausted (4xx, 5xx, timeout, network error)",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 2,
   "is_blocking": false,
@@ -20,76 +31,63 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Failing Adapter",
+      "description": "Name of the adapter that failed",
       "default_value": ""
     },
     {
       "param_name": "adapter_version",
       "type": "string",
       "required": true,
-      "description": "Failing version",
+      "description": "Adapter version that failed",
       "default_value": ""
     },
     {
       "param_name": "error_code",
       "type": "string",
       "required": true,
-      "description": "HTTP status code or internal fault code",
+      "description": "HTTP status or internal fault code",
       "default_value": ""
     },
     {
       "param_name": "error_message",
       "type": "string",
       "required": true,
-      "description": "Detailed exception string",
+      "description": "Detailed failure exception or message",
       "default_value": ""
     },
     {
       "param_name": "request_timestamp",
       "type": "string",
       "required": true,
-      "description": "Time of original failure",
+      "description": "Timestamp of the original failure",
       "default_value": ""
     },
     {
       "param_name": "client_id",
       "type": "string",
       "required": true,
-      "description": "Client for which it failed",
+      "description": "Client ID for which the adapter failed",
       "default_value": ""
     },
     {
       "param_name": "alert_webhook_url",
       "type": "string",
       "required": true,
-      "description": "Outbound webhook for Ops",
+      "description": "Destination webhook URL for ops alert",
       "default_value": "https://hooks.slack.com/services/T0000/B000"
     }
   ],
   "output": {
-    "on_success": "alert delivered, alert_id returned",
-    "on_failure": "alert silently dropped, HOOK_002 logged"
+    "on_success": "Alert delivered; alert_id returned",
+    "on_failure": "Alert silently dropped; HOOK_002 logged"
   },
   "timeout_ms": 3000,
-  "retry_policy": {
-    "max_retries": 2,
-    "backoff_strategy": "fixed",
-    "initial_delay_ms": 500
-  },
-  "credential_env_vars": [
-    "ALERT_WEBHOOK_SECRET"
-  ],
+  "retry_policy": { "max_retries": 2, "backoff_strategy": "fixed", "initial_delay_ms": 500 },
+  "credential_env_vars": ["ALERT_WEBHOOK_SECRET"],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Failed to parse error payload.",
-    "HOOK_002": "Alert destination unreachable (webhook down).",
-    "HOOK_003": "Invalid Alerting Webhook Secret."
-  },
-  "example_log_entry": {
-    "hook_name": "on_failure_alert_hook",
-    "triggered_at": "2026-04-02T10:30:10Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "karza",
-    "result": "SUCCESS - Ops alert dispatched via Webhook webhook_id_992"
+    "HOOK_001": "Failed to parse failure payload.",
+    "HOOK_002": "Alert webhook unreachable.",
+    "HOOK_003": "Invalid webhook secret."
   }
 }

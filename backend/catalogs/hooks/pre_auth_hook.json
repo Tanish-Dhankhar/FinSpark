@@ -1,11 +1,22 @@
 {
   "hook_name": "pre_auth_hook",
   "hook_type": "pre-call",
-  "description": "Injects correct auth headers dynamically before sending outbound API requests.",
-  "trigger_condition": "Before outbound adapter API call",
-  "applicable_adapters": [
-    "*"
+  "description": "Dynamically constructs and injects the correct authentication header into the outbound HTTP request before it is sent to the adapter's API. Supports all auth types used in the adapter catalog: API key (header injection), OAuth2 (bearer token exchange), basic auth (base64 username:password), and bearer token (direct injection). Works in conjunction with credential_resolve_hook which has already resolved raw credential values into memory. Blocks the adapter call from proceeding until authorization is successfully injected. Prevents any API call from being sent without a valid auth header.",
+  "use_cases": [
+    "Injecting API key header for GSTN, Karza, and Razorpay adapters",
+    "Building OAuth2 bearer token headers for CIBIL and Perfios",
+    "Base64 encoding credentials for Razorpay and Twilio basic auth",
+    "Injecting bearer token for RiskGuard internal APIs",
+    "Dynamic auth header construction based on adapter auth_type"
   ],
+  "semantic_tags": [
+    "authentication", "auth header", "API key injection", "OAuth2", "bearer token",
+    "basic auth", "pre-call", "authorization header", "credential injection",
+    "header injection", "token injection", "request auth"
+  ],
+  "when_to_use": "Attach to all adapters that require authentication. Runs after credential_resolve_hook and before field_encryption_hook and outbound call.",
+  "trigger_condition": "Before outbound adapter HTTP call, after credential resolution",
+  "applicable_adapters": ["*"],
   "lifecycle_state": "active",
   "execution_order": 7,
   "is_blocking": true,
@@ -20,53 +31,42 @@
       "param_name": "adapter_name",
       "type": "string",
       "required": true,
-      "description": "Name of the target adapter",
+      "description": "Target adapter requiring auth",
       "default_value": ""
     },
     {
       "param_name": "auth_type",
       "type": "string",
       "required": true,
-      "description": "Type of authentication expected by the adapter",
+      "description": "Auth type: api_key, oauth2, bearer_token, or basic_auth",
       "default_value": "bearer_token"
     },
     {
       "param_name": "credential_env_var",
       "type": "string",
       "required": true,
-      "description": "Environment variables required to construct auth headers",
+      "description": "Environment variable name holding the credential",
       "default_value": ""
     },
     {
       "param_name": "request_headers",
       "type": "object",
       "required": true,
-      "description": "Headers object for the HTTP request",
+      "description": "HTTP headers object for the outbound request",
       "default_value": "{}"
     }
   ],
   "output": {
-    "on_success": "enriched request_headers with Authorization injected",
-    "on_failure": "abort pipeline for this adapter, log HOOK_001 error"
+    "on_success": "request_headers enriched with Authorization header injected",
+    "on_failure": "Pipeline aborted for this adapter; HOOK_001 logged"
   },
   "timeout_ms": 1000,
-  "retry_policy": {
-    "max_retries": 0,
-    "backoff_strategy": "none",
-    "initial_delay_ms": 0
-  },
+  "retry_policy": { "max_retries": 0, "backoff_strategy": "none" },
   "credential_env_vars": [],
   "audit_on_trigger": true,
   "error_codes": {
-    "HOOK_001": "Authentication failure: Missing or invalid credentials.",
+    "HOOK_001": "Missing or invalid credentials for auth injection.",
     "HOOK_002": "Malformed auth header construction.",
-    "HOOK_003": "Critical: Attempted to send request with empty auth header."
-  },
-  "example_log_entry": {
-    "hook_name": "pre_auth_hook",
-    "triggered_at": "2026-04-02T10:30:00Z",
-    "client_id": "client_d22e81e7",
-    "adapter": "cibil",
-    "result": "SUCCESS - Authorization header injected."
+    "HOOK_003": "Attempted to send request without auth header."
   }
 }

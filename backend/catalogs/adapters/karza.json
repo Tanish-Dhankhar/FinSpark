@@ -1,10 +1,29 @@
 {
   "adapter_name": "Karza KYC Provider",
   "category": "kyc",
-  "description": "Verify identity credentials like PAN and Aadhaar against source bodies.",
   "provider": "Karza Technologies",
-  "base_url": "https://api.karza.in",
+  "description": "Performs comprehensive Know Your Customer (KYC) identity verification by validating Aadhaar numbers against UIDAI and PAN numbers against the Income Tax database. Used to confirm that a borrower or customer is who they claim to be before onboarding or loan disbursal. Includes name fuzzy matching, liveness detection, facial recognition, and address fetch from Aadhaar vault. Fully PMLA and RBI KYC Master Direction compliant.",
+  "use_cases": [
+    "Customer onboarding identity verification",
+    "PAN verification against Income Tax database",
+    "Aadhaar OTP-based eKYC for digital lending",
+    "Facial recognition and liveness check for video KYC",
+    "Name matching and fuzzy scoring for identity deduplication",
+    "Address fetch from Aadhaar for proof of address",
+    "KYC compliance before loan disbursal",
+    "Re-KYC for existing customers"
+  ],
+  "semantic_tags": [
+    "KYC", "know your customer", "identity verification", "Aadhaar", "PAN", "eKYC",
+    "UIDAI", "liveness check", "facial recognition", "name match", "address verification",
+    "Karza", "onboarding", "PMLA", "AML compliance", "customer due diligence",
+    "digital KYC", "video KYC", "identity fraud prevention", "biometric verification"
+  ],
+  "compliance_context": "Compliant with RBI KYC Master Direction 2016 (updated 2023), PMLA 2002, and UIDAI regulations. Consent is mandatory before Aadhaar-based authentication.",
+  "typical_callers": "Banks, NBFCs, digital lending platforms, insurance companies, wallet providers, prepaid payment instrument issuers, stockbrokers",
+  "auth_description": "API Key authentication. Single static key passed in the request header.",
   "auth_type": "api_key",
+  "base_url": "https://api.karza.in",
   "credential_env_vars": [
     "KARZA_API_KEY"
   ],
@@ -24,7 +43,7 @@
       "status": "stable",
       "maturity_score": 8,
       "deprecated": false,
-      "release_notes": "Comprehensive suite including liveless check",
+      "release_notes": "Comprehensive suite including liveness check and facial match",
       "sunset_date": "2028-12-31"
     }
   ],
@@ -32,19 +51,19 @@
     {
       "field_name": "aadhaar_number",
       "type": "string",
-      "description": "12 digit Aadhaar number",
+      "description": "12 digit Aadhaar UID for UIDAI-based verification",
       "validation": "12 digit numeric"
     },
     {
       "field_name": "pan_number",
       "type": "string",
-      "description": "Customer PAN",
+      "description": "Customer PAN for Income Tax database verification",
       "validation": "10 char alphanumeric"
     },
     {
       "field_name": "consent",
       "type": "boolean",
-      "description": "True if customer provided explicit consent",
+      "description": "Explicit customer consent for Aadhaar and PAN data access",
       "validation": "boolean"
     }
   ],
@@ -52,64 +71,40 @@
     {
       "field_name": "dob",
       "type": "date",
-      "description": "Date of birth to match",
+      "description": "Date of birth to cross-match against Aadhaar records",
       "default_value": "null"
     },
     {
       "field_name": "full_name",
       "type": "string",
-      "description": "Name for fuzzy matching",
+      "description": "Customer name for fuzzy name matching against ID documents",
       "default_value": "null"
     },
     {
       "field_name": "mobile_number",
       "type": "string",
-      "description": "10 digit mobile number",
+      "description": "Mobile number linked to Aadhaar for OTP-based verification",
       "default_value": "null"
     }
   ],
   "response_schema": {
-    "kyc_status": {
-      "type": "enum",
-      "description": "Enum: VERIFIED/PARTIAL/FAILED"
-    },
-    "name_match_score": {
-      "type": "integer",
-      "description": "Percentage similarity of names"
-    },
-    "pan_verified": {
-      "type": "boolean",
-      "description": "True if PAN is active and valid"
-    },
-    "aadhaar_verified": {
-      "type": "boolean",
-      "description": "True if Aadhaar is active and valid"
-    },
-    "address": {
-      "type": "string",
-      "description": "Central registered address fetched from vault"
-    },
-    "face_match_score": {
-      "type": "integer",
-      "description": "Image similarity score"
-    },
-    "liveness_check": {
-      "type": "string",
-      "description": "PASS or FAIL for proof of life"
-    }
+    "kyc_status": { "type": "enum", "description": "VERIFIED / PARTIAL / FAILED" },
+    "name_match_score": { "type": "integer", "description": "Fuzzy name similarity percentage" },
+    "pan_verified": { "type": "boolean", "description": "True if PAN is active and valid" },
+    "aadhaar_verified": { "type": "boolean", "description": "True if Aadhaar is active" },
+    "address": { "type": "string", "description": "Address from Aadhaar vault" },
+    "face_match_score": { "type": "integer", "description": "Facial similarity percentage" },
+    "liveness_check": { "type": "string", "description": "PASS or FAIL for proof of life" }
   },
   "error_codes": {
     "400": "Invalid Aadhaar or missing consent.",
     "401": "Invalid Karza API key.",
-    "404": "Identity data is missing at source.",
-    "422": "Unprocessable entity - Name format broken.",
-    "500": "NDML/UIDAI upstream failure from Karza."
+    "404": "Identity data missing at source.",
+    "422": "Unprocessable - name format broken.",
+    "500": "NDML/UIDAI upstream failure."
   },
   "timeout_ms": 8000,
-  "retry_policy": {
-    "max_retries": 2,
-    "backoff_strategy": "fixed"
-  },
+  "retry_policy": { "max_retries": 2, "backoff_strategy": "fixed" },
   "sandbox_base_url": "https://sandbox-api.karza.in",
   "fallback_adapter": "digilocker"
 }
