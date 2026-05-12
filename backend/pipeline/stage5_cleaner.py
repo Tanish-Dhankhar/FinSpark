@@ -27,7 +27,16 @@ Rules:
 9. DO NOT change endpoint URLs, version selections, or business logic
 10. REMOVE all keys ending in "_reason" (e.g., "_adapter_reason", "_version_reason", "_mapping_reason") — these are pipeline annotations that MUST NOT appear in production config
 11. Remove any key named "mapping_reason" inside field_mapping arrays
-12. Return the complete cleaned config as valid JSON"""
+12. For every integration's "integration_id" field: if the value contains any of
+    these indicator substrings — "existing", "keep", "placeholder", "value",
+    "integration_id", "to be", "tbd" — the field value is a leaked instruction
+    artifact. Replace the entire value with null and add the integration's
+    service_name to a top-level "cleanup_warnings" list.
+13. Scan ALL string field values (not just keys). If any string value appears to
+    be a verbatim copy of a prompt instruction (e.g., it reads like an imperative
+    sentence, contains "keep the existing", "copy from", "use the value from"),
+    clear that field to null and log it in cleanup_warnings.
+14. Return the complete cleaned config as valid JSON"""
 
 CLEANER_PROMPT = """Clean this integration configuration for production readiness:
 
@@ -63,6 +72,25 @@ def _post_process_clean(config: dict) -> dict:
         pr = config["metadata"]["pipeline_run"]
         if "overall_status" not in pr:
             pr["overall_status"] = "draft"
+
+    # Fix 9B: Deterministic integration_id placeholder detection
+    # Catches leaked prompt instruction text the LLM cleaner may have missed.
+    PLACEHOLDER_SIGNALS = {"existing", "keep", "placeholder", "tbd", "to be", "integration_id value"}
+    warnings = config.setdefault("cleanup_warnings", [])
+
+    for integ in config.get("integrations", []):
+        iid = integ.get("integration_id") or ""
+        iid_lower = iid.lower()
+        if any(signal in iid_lower for signal in PLACEHOLDER_SIGNALS):
+            svc = integ.get("service_name", "unknown")
+            print(f"     Cleared placeholder integration_id for '{svc}': '{iid}'")
+            warnings.append({
+                "field": "integration_id",
+                "service": svc,
+                "original_value": iid,
+                "action": "cleared -- contained prompt instruction text",
+            })
+            integ["integration_id"] = None
 
     return config
 

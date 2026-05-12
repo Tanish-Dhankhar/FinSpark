@@ -15,18 +15,47 @@ from backend.services.project_service import get_latest_config, save_config
 
 
 REPORT_SYSTEM = """You are a simulation report generator for enterprise API integrations.
-Analyze simulation results and produce a structured quality report.
+Analyze the field_mapping data and produce a structured quality report.
 
-Use these EXACT status values for each integration_result:
-- "passed": confidence_score >= 75 AND no missing MANDATORY fields (optional missing fields are OK)
-- "warning": confidence_score >= 50 AND only optional fields are missing (not a blocker)
-- "failed": confidence_score < 50 OR any required/mandatory field has mapping_type=\"missing\"
+SCORING FORMULA -- apply this EXACTLY for each integration:
 
-Confidence score formula: (fields_mapped_correctly / total_required_fields) * 100
-Apply -15 penalty per MANDATORY missing field (check mapping_type=\"missing\" in field_mapping).
-Never go below 0. Optional missing fields: -5 penalty each.
+  Step 1: Count fields
+    mapped_count  = count of field_mapping entries where mapping_type != "missing"
+    missing_count = count of field_mapping entries where mapping_type == "missing"
+    total_fields  = mapped_count + missing_count
 
-For overall_passed: true only if all integrations are \"passed\" or \"warning\". False if ANY is \"failed\"."""
+  Step 2: Calculate score
+    base_score       = (mapped_count / total_fields) * 100
+                       [if total_fields == 0: base_score = 100, skip to Step 3]
+    missing_penalty  = missing_count * 15
+    confidence_score = max(0, round(base_score - missing_penalty))
+
+  Worked example:
+    field_mapping has 7 entries: 5 mapped, 2 missing
+    base_score       = (5 / 7) * 100 = 71.4
+    missing_penalty  = 2 * 15 = 30
+    confidence_score = max(0, round(71.4 - 30)) = 41  -> status: "failed"
+
+  Step 3: Assign status
+    "passed"  -- confidence_score >= 75 AND missing_count == 0
+    "warning" -- confidence_score >= 50 AND missing_count == 0
+    "failed"  -- confidence_score < 50 OR missing_count > 0
+
+  Step 4: Determine overall_passed (set LAST, after all statuses are assigned)
+    overall_passed = true  ONLY IF  count(status == "failed") == 0
+    overall_passed = false IF  count(status == "failed") >= 1
+    Warning status does NOT make overall_passed false.
+
+FORBIDDEN PENALTIES -- never apply a penalty for:
+  - Having zero transformation_rules
+  - Having fewer hooks than expected
+  - Any condition not listed in Steps 1-3 above
+
+For missing_mandatory_fields: list the api_field value for every entry where
+mapping_type == "missing". Do not leave this array empty if such entries exist.
+
+Use EXACT status values: "passed", "warning", "failed", "skipped" -- no other values."""
+
 
 REPORT_PROMPT = """Here is the integration config:
 {config}

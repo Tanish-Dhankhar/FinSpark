@@ -1,157 +1,196 @@
 """
-Gemini LLM Service
-Centralized wrapper for Google Gemini API calls with rate-limit handling,
-structured prompt templating, and JSON response parsing.
+LLM Service — Local Inference via LM Studio
+Centralized wrapper for the OpenAI-compatible LM Studio server.
+
+Key design decisions:
+  - JSON enforcement is done via system-prompt instruction, NOT response_format.
+    LM Studio (as of current builds) rejects json_object mode; system-prompt
+    enforcement was confirmed to work reliably in testing.
+  - 4-tier JSON recovery: direct parse -> strip fences -> json_repair -> partial walk-back.
+  - Retry loop with short fixed delays (no exponential backoff — local server
+    doesn't rate-limit, so fast retries are correct).
+  - Per-call max_tokens override is supported to cap output length per stage.
 """
 import json
 import time
 import traceback
 from typing import Optional
-from google import genai
-from google.genai import types
+
+from openai import OpenAI, APIConnectionError, APIStatusError
 from langsmith import traceable
-from backend.config import get_google_api_key, GEMINI_MODEL, GEMINI_TEMPERATURE, GEMINI_MAX_OUTPUT_TOKENS
+
+from backend.config import (
+    LM_STUDIO_BASE_URL,
+    LM_STUDIO_API_KEY,
+    LM_STUDIO_MODEL,
+    LM_STUDIO_TEMPERATURE,
+    LM_STUDIO_MAX_OUTPUT_TOKENS,
+)
 
 
-# ── Singleton Client ────────────────────────────────────────────────────────
+# -- Singleton client ---------------------------------------------------------
 
-_client: Optional[genai.Client] = None
+_client: Optional[OpenAI] = None
 
 
-def _get_client() -> genai.Client:
-    """Lazy-init the Gemini client."""
+def _get_client() -> OpenAI:
+    """Lazy-init the LM Studio OpenAI-compatible client."""
     global _client
     if _client is None:
-        api_key = get_google_api_key()
-        _client = genai.Client(api_key=api_key)
+        _client = OpenAI(
+            base_url=LM_STUDIO_BASE_URL,
+            api_key=LM_STUDIO_API_KEY,
+        )
     return _client
 
 
-# ── Core LLM Call ───────────────────────────────────────────────────────────
+# -- JSON system-prompt prefix ------------------------------------------------
+# Prepended to any system instruction when expect_json=True.
+# This is the only reliable JSON enforcement mechanism on LM Studio.
+_JSON_PREAMBLE = (
+    "IMPORTANT: You MUST respond with valid JSON only. "
+    "Do NOT include any markdown code fences (no ``` or ```json). "
+    "Do NOT include any explanation before or after the JSON. "
+    "Your entire response must be parseable by json.loads().\n\n"
+)
+
+
+# -- Core LLM call ------------------------------------------------------------
 
 @traceable(run_type="llm")
 def call_llm(
     prompt: str,
     system_instruction: Optional[str] = None,
     expect_json: bool = False,
-    max_retries: int = 5,
+    max_retries: int = 3,
     model: Optional[str] = None,
+    max_tokens_override: Optional[int] = None,
 ) -> str:
     """
-    Make a single LLM call to Gemini with automatic retry on rate limits.
-    
+    Make a single LLM call to the local LM Studio server.
+
     Args:
-        prompt: The user prompt text
-        system_instruction: Optional system prompt for guiding behavior
-        expect_json: If True, instruct model to return valid JSON only
-        max_retries: Maximum retry attempts on transient errors
-        model: Override the default model
-        
+        prompt:             The user-turn prompt text.
+        system_instruction: Optional system prompt.
+        expect_json:        If True, prepend JSON enforcement preamble to system prompt.
+        max_retries:        Retry attempts on connection/server errors.
+        model:              Override the default model name.
+        max_tokens_override: If set, use this instead of LM_STUDIO_MAX_OUTPUT_TOKENS.
+
     Returns:
-        The model's text response (stripped)
+        The model's text response (stripped).
     """
-    client = _get_client()
-    target_model = model or GEMINI_MODEL
+    client      = _get_client()
+    target_model = model or LM_STUDIO_MODEL
+    max_tokens  = max_tokens_override or LM_STUDIO_MAX_OUTPUT_TOKENS
 
-    # Build config
-    gen_config = types.GenerateContentConfig(
-        temperature=GEMINI_TEMPERATURE,
-        max_output_tokens=GEMINI_MAX_OUTPUT_TOKENS,
-    )
-    if system_instruction:
-        gen_config.system_instruction = system_instruction
+    # Build messages list
+    messages = []
     if expect_json:
-        gen_config.response_mime_type = "application/json"
+        # Fuse the JSON preamble with any caller-provided system instruction
+        sys_content = _JSON_PREAMBLE + (system_instruction or "")
+    else:
+        sys_content = system_instruction or ""
 
-    # Retry loop with exponential backoff
+    if sys_content.strip():
+        messages.append({"role": "system", "content": sys_content})
+    messages.append({"role": "user", "content": prompt})
+
+    # Retry loop (short fixed delay — local server, no rate limits)
     for attempt in range(max_retries):
         try:
-            response = client.models.generate_content(
+            response = client.chat.completions.create(
                 model=target_model,
-                contents=prompt,
-                config=gen_config,
+                messages=messages,
+                temperature=LM_STUDIO_TEMPERATURE,
+                max_tokens=max_tokens,
             )
-            if response.text:
-                return response.text.strip()
+            content = response.choices[0].message.content
+            if content and content.strip():
+                return content.strip()
             else:
-                raise ValueError(f"Empty response from Gemini (attempt {attempt + 1})")
+                raise ValueError(f"Empty response from model (attempt {attempt + 1})")
+
+        except APIConnectionError as e:
+            print(f"  [LLM] Connection error (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            raise
+
+        except APIStatusError as e:
+            print(f"  [LLM] API error {e.status_code} (attempt {attempt + 1}/{max_retries}): {e.message}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            raise
+
         except Exception as e:
             error_str = str(e).lower()
             is_retryable = any(kw in error_str for kw in [
-                "429", "rate", "resource_exhausted", "quota",
-                "503", "overloaded", "unavailable", "deadline",
-                "500", "internal"
+                "connection", "timeout", "unavailable", "server error", "500", "503",
             ])
-            # Max-token errors are NOT retryable — the prompt is too large
-            is_token_overflow = any(kw in error_str for kw in [
-                "generation exceeded max tokens",
-                "max_tokens",
-                "output tokens limit",
-                "exceeds the maximum",
-            ])
-            if is_token_overflow:
-                raise ValueError(
-                    f"LLM output token overflow — prompt or response is too large. "
-                    f"Try splitting the request into smaller chunks. Error: {e}"
-                )
             if is_retryable and attempt < max_retries - 1:
-                wait_time = min(2 ** attempt * 2, 60)  # 2, 4, 8, 16, 32, max 60
-                print(f"  ⏳ Rate limited (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...")
-                time.sleep(wait_time)
+                print(f"  [LLM] Transient error, retrying in 2s (attempt {attempt + 1}): {e}")
+                time.sleep(2)
                 continue
-            else:
-                print(f"  ❌ LLM call failed after {attempt + 1} attempts: {e}")
-                traceback.print_exc()
-                raise
+            print(f"  [LLM] Call failed after {attempt + 1} attempt(s): {e}")
+            traceback.print_exc()
+            raise
 
+
+# -- JSON-mode wrapper --------------------------------------------------------
 
 def call_llm_json(
     prompt: str,
     system_instruction: Optional[str] = None,
-    max_retries: int = 5,
+    max_retries: int = 3,
+    max_tokens_override: Optional[int] = None,
 ) -> dict:
     """
     Make an LLM call and parse the response as JSON.
-    Falls back to extracting JSON from markdown code blocks if needed.
-    
+    Uses 4-tier recovery to handle imperfect model outputs.
+
     Returns:
-        Parsed JSON as a dict/list
+        Parsed JSON as a dict (or list wrapped in dict under '_repaired_list').
     """
     raw = call_llm(
         prompt=prompt,
         system_instruction=system_instruction,
         expect_json=True,
         max_retries=max_retries,
+        max_tokens_override=max_tokens_override,
     )
     return _parse_json_response(raw)
 
 
+# -- JSON recovery pipeline ---------------------------------------------------
+
 def _parse_json_response(raw: str) -> dict:
-    """Parse JSON from LLM response, handling common formatting issues.
-    
+    """
+    Parse JSON from LLM response with 4-tier recovery.
+
     Recovery order:
-    1. Direct parse (fast path)
-    2. Strip markdown code fences
-    3. json_repair (if installed) — handles truncated/malformed JSON
-    4. Partial recovery — find the last complete top-level object
-    5. Hard failure with diagnostic context
+      1. Direct json.loads()
+      2. Strip markdown code fences (``` or ```json)
+      3. json_repair library (handles truncated/malformed JSON)
+      4. Partial walk-back: find last syntactically-closed object
+      5. Hard failure with diagnostic context
     """
     if not raw or not raw.strip():
         raise ValueError("LLM returned an empty response.")
 
-    # ── 1. Direct parse ───────────────────────────────────────────────────
+    # -- 1. Direct parse ------------------------------------------------------
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
-    # ── 2. Strip markdown code fences ────────────────────────────────────
-    cleaned = raw
+    # -- 2. Strip markdown code fences ----------------------------------------
     for fence in ("```json", "```"):
         if fence in raw:
             try:
                 start = raw.index(fence) + len(fence)
-                # skip optional language tag on same line
                 newline = raw.index("\n", start)
                 start = newline + 1
                 end = raw.index("```", start)
@@ -160,41 +199,36 @@ def _parse_json_response(raw: str) -> dict:
             except (ValueError, json.JSONDecodeError):
                 pass
 
-    # ── 3. json_repair (handles truncated JSON gracefully) ────────────────
+    # -- 3. json_repair (handles truncated JSON gracefully) -------------------
     try:
         from json_repair import repair_json  # type: ignore
         repaired = repair_json(raw, return_objects=True)
         if isinstance(repaired, (dict, list)):
-            print("  ⚠️  JSON was repaired (response may have been truncated by token limit).")
+            print("  [LLM] JSON was repaired (response may have been truncated by token limit).")
             return repaired if isinstance(repaired, dict) else {"_repaired_list": repaired}
     except ImportError:
-        pass  # json_repair not installed — fall through to partial recovery
+        pass  # json_repair not installed -- fall through
 
-    # ── 4. Partial recovery: salvage last complete JSON object ────────────
-    # The LLM response was cut off mid-JSON. Walk backwards from the end to
-    # find the last position where the JSON is syntactically closed.
+    # -- 4. Partial walk-back: salvage last complete JSON object --------------
     for cutoff in range(len(raw), 0, -1):
         candidate = raw[:cutoff].rstrip()
-        # Try appending closing brackets to make it valid
-        for closer in ("", "}", "}]}", "}]}\n}", "}]}"):
+        for closer in ("", "}", "}]}", "}]}\n}"):
             try:
                 result = json.loads(candidate + closer)
                 if isinstance(result, dict) and result:
                     print(
-                        f"  ⚠️  JSON truncated at token limit — recovered partial response "
-                        f"({cutoff}/{len(raw)} chars). Some services may be missing."
+                        f"  [LLM] JSON truncated at token limit -- recovered partial response "
+                        f"({cutoff}/{len(raw)} chars). Some fields may be missing."
                     )
                     return result
             except json.JSONDecodeError:
                 continue
-        # Only scan the last 200 chars before giving up (avoid O(n²) on huge strings)
+        # Only scan the last 200 chars before giving up (avoid O(n^2) on huge strings)
         if len(raw) - cutoff > 200:
             break
 
     raise ValueError(
         f"Could not parse JSON from LLM response. "
-        f"The response may have been truncated ({len(raw)} chars). "
-        f"Consider increasing GEMINI_MAX_OUTPUT_TOKENS. "
+        f"Response may have been truncated ({len(raw)} chars). "
         f"First 500 chars:\n{raw[:500]}"
     )
-

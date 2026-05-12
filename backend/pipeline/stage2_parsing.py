@@ -37,11 +37,20 @@ Critical rules:
    confidence="low" and your best guess at category and purpose.
 5. For input_fields_mentioned: ONLY capture fields explicitly named in the BRD for this service.
    Do NOT include fields you think the API might need — that is the downstream engine's job.
-6. Mark is_mandatory=true ONLY if the BRD explicitly states the service is a REQUIRED INTEGRATION.
-   Mark is_mandatory=false for optional, conditional, or pure alerting/notification services.
-   IMPORTANT: A sentence that makes a monitoring or alerting process mandatory does NOT make the
-   underlying notification tool a mandatory integration — the obligation applies to the business
-   process, not the adapter. Outbound notification channels are always is_mandatory=false.
+6. Mark is_mandatory=true ONLY if the BRD explicitly states the service is a REQUIRED
+   INTEGRATION that the system sends data TO and receives a decision-driving response FROM.
+
+   MANDATORY OVERRIDE — always set is_mandatory=false AND role="mentioned_only" when
+   ALL of the following structural signals are present for a service:
+     a. The BRD describes the system PUSHING events/notifications TO the service
+        (e.g., "alert via", "notify via", "send SMS to", "trigger webhook on").
+     b. The service returns no response that drives any business decision.
+     c. The BRD explicitly states or implies failures are non-blocking
+        (e.g., "must not block", "best effort", "notify at each step",
+        "failures should not delay", "alert team if").
+
+   These services are hook targets, not integration requirements. They must NOT
+   receive an integration skeleton in Stage 3.
 
 7. CRITICAL — Assign the role field. Before assigning, apply this single discriminating test:
 
@@ -83,10 +92,40 @@ Critical rules:
    • A service that only RECEIVES outbound calls from the system is NEVER primary.
 
 
-8. For hook_signals: capture conditional triggers with their exact condition/threshold
-   (e.g. "route to fraud queue if score >= 75", "call webhook on payment success").
+8. For hook_signals: you MUST scan the ENTIRE document including all prose sections,
+   not just the field tables. For each service, ask:
+     "Does the BRD describe what happens when THIS service fails, returns a specific
+      value, or meets a threshold condition?"
+   If yes, capture that as a hook_signal with the EXACT condition stated.
+
+   Common prose patterns to look for:
+     - "If [service] returns [value/status], then [action]"
+     - "Route to [queue/team] when [condition]"
+     - "If [service] fails, [retry/escalate/skip]"
+     - "Allow up to N re-attempts"
+     - "Treat as [state] if [service] returns no record"
+     - "Notify [recipient] on [event]"
+
+   Capture the FULL condition, not just "webhook mentioned".
+   Example: "Route to manual review queue if identity verification fails" — NOT "manual review webhook".
 9. DO NOT hallucinate services not mentioned. Only extract what is in the document.
-10. Be exhaustive — it is better to extract too much than to miss anything."""
+10. Be exhaustive — it is better to extract too much than to miss anything.
+
+CATEGORY DISAMBIGUATION — apply before assigning any category:
+
+  "bureau" = services that return a credit history, credit score, or repayment
+             track record for a person or entity. The service is operated by a
+             regulated credit information company. Signals: "credit score",
+             "credit report", "bureau check", "credit history", "CIBIL",
+             "Experian", "CRIF", "Equifax".
+
+  "fraud"  = services that score real-time transaction or behavioural risk,
+             detect AML patterns, or flag suspicious activity. They do NOT
+             return credit history. Signals: "fraud score", "risk score",
+             "AML", "transaction monitoring", "device fingerprint", "velocity check".
+
+  A credit bureau is NEVER category "fraud". When uncertain between the two,
+  check: does the service return a credit score or repayment history? If yes → "bureau"."""
 
 EXTRACTION_PROMPT_TEMPLATE = """Analyze the following enterprise document(s) and extract ALL integration requirements.
 
@@ -254,6 +293,15 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
     # ── Step 1: Exhaustive requirement extraction ─────────────────────────
     print(f"\n  🔍 Step 1: Extracting all integration signals from documents...")
     print(f"     Document length: {len(combined_text)} characters")
+
+    # Safety cap: Stage 2 system prompt + schema takes ~1400 tokens.
+    # At 4 chars/token, 12000 chars ≈ 3000 tokens of BRD text.
+    # Total input stays under ~4500 tokens, leaving 11k+ output budget on a 16k context.
+    BRD_TEXT_CAP = 12000
+    if len(combined_text) > BRD_TEXT_CAP:
+        print(f"     ⚠️  BRD text capped at {BRD_TEXT_CAP} chars to fit context window "
+              f"(original: {len(combined_text)} chars)")
+        combined_text = combined_text[:BRD_TEXT_CAP] + "\n\n... [document truncated — first section only]"
 
     extraction_prompt = EXTRACTION_PROMPT_TEMPLATE.format(
         known_categories=KNOWN_ADAPTER_CATEGORIES,

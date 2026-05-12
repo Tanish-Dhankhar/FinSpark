@@ -50,7 +50,13 @@ Pick the SINGLE best adapter using these priority rules:
    Never select a beta or deprecated version unless it is the only option.
 5. NEVER invent adapter IDs. Only use IDs exactly as listed in the candidates.
 
-If no candidate is a reasonable match (score below 0.3 and no name match), set adapter_id to "unmatched"."""
+If no candidate is a reasonable match (score below 0.3 and no name match), set adapter_id to "unmatched".
+
+For the "reason" field, be precise about match type:
+  - "Exact name match" → ONLY when the BRD explicitly names this exact provider
+  - "Semantic match"  → when the adapter was selected by conceptual similarity
+  - "Category match with highest score" → when selected primarily on score
+  Never claim exact match when the BRD uses a generic description (e.g., "a credit API")."""
 
 ADAPTER_PICK_PROMPT = """Service requirement from BRD:
 {service_info}
@@ -82,7 +88,25 @@ Core rules:
     * If a BRD field needs type/format conversion → mapping_type="computed"
     * If NO BRD field covers it → mapping_type="missing", user_field="N/A"
       DO NOT use null or "null" string for user_field — use the string "N/A".
+- IMPORTANT: Never omit a required adapter field from field_mapping, even if it has
+  a fixed/constant value not mentioned in the BRD.
+  For adapter fields with a fixed system value (e.g., a constant amount, a fixed flag,
+  a system-generated ID), use:
+    mapping_type = "computed"
+    user_field   = "N/A"
+    description  = "System constant — always set to [value]. Not a user-provided field."
+  The value itself should be noted in the description, not left implicit.
 - For transformation_rules: generate encrypt rules for all PII fields (PAN, Aadhaar, DOB, phone, account_number).
+- Also generate transformation_rules for these additional cases:
+  FORMAT MISMATCH: If the BRD field format and the adapter field format differ, add rule_type="format".
+  Trigger signals:
+    • BRD says "10-digit number" but adapter requires a formatted string (E.164, country-code prefix, leading zeros)
+    • BRD says "DD/MM/YYYY" but adapter requires "YYYY-MM-DD" or epoch timestamp
+    • BRD says "name as string" but adapter requires "FIRST_LAST" split
+  For each mismatch, set rule, and example (before → after, e.g., "9876543210 → +919876543210").
+  TYPE CAST: If BRD field is a string but adapter requires integer or boolean, add rule_type="type_cast".
+  Phone numbers always require a format check — if the adapter field is a phone/mobile destination,
+  check whether the adapter format spec differs from the BRD and add the rule if so.
 - DO NOT select a deprecated version. If the version marked for selection is deprecated, use the
   latest stable version from the versions list and explain in _version_reason.
 - Include _mapping_reason and _adapter_reason/_version_reason annotations."""
@@ -100,7 +124,7 @@ MATCH REASON: {match_reason}
 
 Return a SINGLE JSON object with EXACTLY this structure:
 {{
-  "integration_id": "keep the existing integration_id value",
+  "integration_id": "{integration_id}",
   "service_name": "keep the existing service_name value",
   "adapter_id": "{adapter_id}",
   "category": "copy category from adapter JSON",
@@ -151,23 +175,34 @@ FIELD MAPPING RULES (apply in order):
 Return ONLY the JSON object (no markdown, no explanation outside the JSON)."""
 
 HOOK_PICK_SYSTEM = """You are a hook selection engine for enterprise integration pipelines.
-You receive semantically retrieved hook candidates for ONE integration.
-Select the appropriate hooks by applying these rules:
+Select hooks for ONE integration by following this EXACT checklist in order.
+Do not skip any step.
 
-MANDATORY for ALL integrations (include if present in candidates):
-  - credential_resolve_hook: required before any auth injection
-  - pre_auth_hook: required for any authenticated call
-  - retry_hook: required for any external HTTP adapter
-  - on_failure_alert_hook: required for all mandatory integrations
+STEP 1 — Mandatory hooks (always include, regardless of candidates):
+  [ ] credential_resolve_hook
+  [ ] pre_auth_hook
+  [ ] retry_hook
+  [ ] on_failure_alert_hook  (only if integration is_mandatory=true)
 
-ADDITIONAL rules by category:
-  - KYC / bureau / banking: also include field_encryption_hook (PII data must be encrypted)
-  - fraud / bureau: also include post_schema_validation_hook if present
-  - Any adapter with compliance_requirements: also include audit_emit_hook if present
+STEP 2 — Category-specific hooks (check integration category, then act):
+  [ ] IF category is one of [kyc, bureau, banking]:
+        → Add "field_encryption_hook" to assigned list
+        → If field_encryption_hook is not in the candidates list, still include it
+  [ ] IF category is one of [fraud, bureau]:
+        → Add "post_schema_validation_hook" to assigned list
+        → If post_schema_validation_hook is not in candidates, still include it
+  [ ] IF integration has non-empty compliance_requirements:
+        → Add "audit_emit_hook" if it appears in the candidates list
 
-Always use hook_id values EXACTLY as they appear in the candidates list.
-Do NOT invent hook IDs. If a mandatory hook is not in the candidates list, still list it —
-the caller will handle missing candidates gracefully."""
+STEP 3 — Candidates (add any remaining candidates with score >= 0.70):
+  [ ] For each candidate not already in the assigned list:
+        If score >= 0.70 → add to assigned list
+
+STEP 4 — Deduplication:
+  [ ] Remove any duplicate hook IDs from the final list
+
+Return ONLY: {"assigned_hooks": ["hook_id_1", "hook_id_2", ...]}
+Do not invent hook IDs not mentioned in Steps 1–2 or the candidates list."""
 
 HOOK_PICK_PROMPT = """Integration context:
 {integration_info}
@@ -204,8 +239,6 @@ Use this exact structure for each hook (copy all values from the catalog):
     "hook_name": "from catalog hook_name field",
     "hook_type": "from catalog hook_type field",
     "description": "from catalog description field",
-    "use_cases": ["from catalog use_cases array"],
-    "semantic_tags": ["from catalog semantic_tags array"],
     "when_to_use": "from catalog when_to_use field",
     "trigger_condition": "from catalog trigger_condition field",
     "applicable_adapters": ["from catalog applicable_adapters array"],
@@ -458,12 +491,24 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         current_config = get_latest_config(client_id)
 
         if adapter_json is not None:
+            # Fix 4B: Resolve the actual integration_id from the current config skeleton
+            actual_integration_id = ""
+            for integ in current_config.get("integrations", []):
+                if integ.get("service_name") == svc_name:
+                    actual_integration_id = integ.get("integration_id", "")
+                    break
+            if not actual_integration_id:
+                # Deterministic fallback: derive from service_name (no LLM needed)
+                words = svc_name.lower().split()
+                actual_integration_id = "_".join(w for w in words if len(w) > 2)[:40] + "_001"
+
             fill_prompt = INTEGRATION_FILL_PROMPT.format(
                 service_info=json.dumps(_slim_service_info(service), indent=2),
                 adapter_json=json.dumps(adapter_json, indent=2),
                 chosen_version=chosen_version,
                 match_reason=match_reason,
                 adapter_id=chosen_adapter_id,
+                integration_id=actual_integration_id,
             )
             filled_integration = call_llm_json(
                 prompt=fill_prompt,
@@ -544,6 +589,24 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         for p in HOOKS_CATALOG_DIR.glob("*.json")
         if p.name != "master_index.json" and p.name != "embeddings_cache.json"
     }
+
+    # Fix 5B: Pre-load mandatory hook IDs so the per-hook loop never falls back
+    # to a minimal stub for critical hooks, even if vector search didn't rank them.
+    MANDATORY_HOOK_IDS = [
+        "credential_resolve_hook",
+        "pre_auth_hook",
+        "retry_hook",
+        "on_failure_alert_hook",
+        "audit_emit_hook",
+        "field_encryption_hook",
+        "post_schema_validation_hook",
+    ]
+    for mandatory_hid in MANDATORY_HOOK_IDS:
+        if mandatory_hid not in hook_id_to_path:
+            candidate_path = HOOKS_CATALOG_DIR / f"{mandatory_hid}.json"
+            if candidate_path.exists():
+                hook_id_to_path[mandatory_hid] = candidate_path.name
+                print(f"     Pre-loaded mandatory hook: {mandatory_hid}")
     all_hook_ids_assigned: set = set()
 
     current_config = get_latest_config(client_id)
@@ -591,50 +654,78 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         print(f"        ✅ Assigned: {', '.join(assigned_hook_ids)}")
         all_hook_ids_assigned.update(assigned_hook_ids)
 
-        # ── 3g: Fetch full hook JSONs & fill hook config ──────────────
-        print(f"     📄 3g: Loading hook files and filling config...")
-        hook_details = {}
-        for hid in assigned_hook_ids:
-            if hid in hook_id_to_path:
-                hook_file = HOOKS_CATALOG_DIR / hook_id_to_path[hid]
-                if hook_file.exists():
-                    hook_details[hid] = json.loads(hook_file.read_text(encoding="utf-8"))
-                else:
-                    print(f"        ⚠️  Hook file not found: {hook_file}")
-            else:
-                print(f"        ⚠️  Hook '{hid}' not in catalog index")
+        # -- 3g: Populate one hook at a time (Fix 5C) -----------------------
+        print(f"     3g: Populating hook objects one-by-one...")
+        populated_hooks = []
 
-        if hook_details:
-            hook_fill_prompt = HOOK_FILL_PROMPT.format(
+        for hid in assigned_hook_ids:
+            if hid not in hook_id_to_path:
+                print(f"        Hook '{hid}' not in catalog -- building minimal stub")
+                populated_hooks.append({
+                    "hook_id": hid,
+                    "hook_name": hid.replace("_", " ").title(),
+                    "hook_type": "pre_call",
+                    "lifecycle_state": "registered",
+                    "execution_order": 99,
+                    "is_blocking": False,
+                    "trigger_condition": "",
+                    "timeout_ms": 5000,
+                    "credential_env_vars": [],
+                    "audit_on_trigger": True,
+                })
+                continue
+
+            hook_file = HOOKS_CATALOG_DIR / hook_id_to_path[hid]
+            if not hook_file.exists():
+                print(f"        Hook file not found: {hook_file}")
+                continue
+
+            # Slim the catalog entry: strip noisy fields to reduce token budget
+            full_catalog = json.loads(hook_file.read_text(encoding="utf-8"))
+            slim_catalog = {k: full_catalog[k] for k in [
+                "hook_id", "hook_name", "hook_type", "description", "when_to_use",
+                "trigger_condition", "applicable_adapters", "execution_order",
+                "is_blocking", "payload_template", "input_parameters", "output",
+                "timeout_ms", "retry_policy", "credential_env_vars",
+            ] if k in full_catalog}
+
+            single_hook_prompt = HOOK_FILL_PROMPT.format(
                 integration_info=json.dumps(_slim_integration_info(integration), indent=2),
-                hook_ids=json.dumps(assigned_hook_ids),
-                hook_details=json.dumps(hook_details, indent=2),
+                hook_ids=json.dumps([hid]),
+                hook_details=json.dumps({hid: slim_catalog}, indent=2),
             )
-            filled_hooks = call_llm_json(
-                prompt=hook_fill_prompt,
+            result = call_llm_json(
+                prompt=single_hook_prompt,
                 system_instruction=HOOK_FILL_SYSTEM,
             )
-            if isinstance(filled_hooks, list):
-                integration["hooks"] = filled_hooks
-            elif isinstance(filled_hooks, dict) and "hooks" in filled_hooks:
-                integration["hooks"] = filled_hooks["hooks"]
+
+            # Accept array or single-object response
+            if isinstance(result, list) and result:
+                populated_hooks.append(result[0])
+            elif isinstance(result, dict) and result.get("hook_id"):
+                populated_hooks.append(result)
             else:
-                # Minimal fallback: build hook stubs from catalog data
-                integration["hooks"] = [
-                    {
-                        "hook_id": hid,
-                        "hook_name": hook_details[hid].get("hook_name", hid),
-                        "hook_type": hook_details[hid].get("hook_type", ""),
-                        "lifecycle_state": "registered",
-                        "execution_order": hook_details[hid].get("execution_order", 99),
-                        "is_blocking": hook_details[hid].get("is_blocking", False),
-                        "trigger_condition": hook_details[hid].get("trigger_condition", ""),
-                        "timeout_ms": hook_details[hid].get("timeout_ms", 5000),
-                    }
-                    for hid in assigned_hook_ids if hid in hook_details
-                ]
-        else:
-            integration["hooks"] = []
+                # Deterministic fallback from slim catalog
+                populated_hooks.append({
+                    "hook_id": hid,
+                    "hook_name": slim_catalog.get("hook_name", hid),
+                    "hook_type": slim_catalog.get("hook_type", ""),
+                    "lifecycle_state": "registered",
+                    "execution_order": slim_catalog.get("execution_order", 99),
+                    "is_blocking": slim_catalog.get("is_blocking", False),
+                    "trigger_condition": slim_catalog.get("trigger_condition", ""),
+                    "timeout_ms": slim_catalog.get("timeout_ms", 5000),
+                    "retry_policy": slim_catalog.get("retry_policy", {}),
+                    "credential_env_vars": [
+                        f"${v}" if not str(v).startswith("$") else v
+                        for v in slim_catalog.get("credential_env_vars", [])
+                    ],
+                    "audit_on_trigger": True,
+                })
+            print(f"        Hook populated: {hid}")
+
+        integration["hooks"] = populated_hooks
+
 
         # Re-read config and update just this integration's hooks
         current_config = get_latest_config(client_id)

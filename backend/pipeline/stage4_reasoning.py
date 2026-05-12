@@ -83,10 +83,13 @@ Cross-reference the BRD text against the integrations array:
 - If all BRD services are fully covered, state that explicitly with ✅
 
 ## 5. Field Mapping Summary
-For each integration, provide a compact summary:
-- Total required fields: X mapped (direct/rename) + Y computed + Z missing
-- List any PII fields with their encryption transformation rule
-- List any format-conversion fields (e.g. date format changes)
+For each integration, independently derive:
+- Total field_mapping entries: X mapped (direct/rename/computed) + Y missing
+- PII fields: list ONLY fields where is_pii=true from THIS integration's OWN field_mapping.
+  DO NOT copy PII fields from any other integration's section.
+- Format conversion fields: list fields with transformation_rules of rule_type="format"
+- Each integration's PII list MUST be derived from its own field_mapping entries only.
+  If an integration has no PII fields in its field_mapping, state "No PII fields mapped."
 
 ## 6. Overall Assessment
 Provide a structured assessment:
