@@ -22,10 +22,10 @@ def generate_client_id() -> str:
     return f"client_{uuid.uuid4().hex[:8]}"
 
 
-def create_project(client_name: str) -> dict:
+def create_project(client_name: str, client_id: Optional[str] = None) -> dict:
     """
     Initialize a new client project:
-    1. Generate unique client_id
+    1. Generate unique client_id (if not provided)
     2. Create folder structure
     3. Inject client details into config template → config_v1.json
     4. Create empty .env
@@ -34,7 +34,8 @@ def create_project(client_name: str) -> dict:
     Returns:
         Dict with client_id, client_name, created_at, folder_path
     """
-    client_id = generate_client_id()
+    if not client_id:
+        client_id = generate_client_id()
     client_dir = CLIENTS_DIR / client_id
     created_at = datetime.now(timezone.utc).isoformat()
 

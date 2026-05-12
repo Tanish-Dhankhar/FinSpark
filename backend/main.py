@@ -288,6 +288,11 @@ async def upload_documents(client_id: str, files: List[UploadFile] = File(...)):
     """Upload documents (BRD, SOW, API specs) to a project."""
     docs_dir = CLIENTS_DIR / client_id / "input_documents"
     if not docs_dir.exists():
+        # On Vercel, the /tmp dir might have been wiped between requests. Recreate it.
+        from backend.services.project_service import create_project
+        create_project(client_name=f"Recreated_{client_id}", client_id=client_id)
+        
+    if not docs_dir.exists():
         raise HTTPException(status_code=404, detail=f"Project {client_id} not found")
 
     uploaded = []
