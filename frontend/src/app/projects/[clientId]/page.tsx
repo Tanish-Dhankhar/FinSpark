@@ -1479,7 +1479,7 @@ function AuditTab({ auditLog: initialAuditLog, clientId }: any) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border-subtle)" }}>
-                {["Time", "Stage", "Action", "Agent"].map(h => (
+                {["Date / Time", "Stage", "Action", "Agent"].map(h => (
                   <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontWeight: 600, color: "var(--text-muted)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }}>{h}</th>
                 ))}
               </tr>
@@ -1492,11 +1492,21 @@ function AuditTab({ auditLog: initialAuditLog, clientId }: any) {
                   onMouseEnter={ev => (ev.currentTarget.style.background = "var(--bg-surface)")}
                   onMouseLeave={ev => (ev.currentTarget.style.background = "transparent")}>
                   <td style={{ padding: "10px 18px", color: "var(--text-muted)", whiteSpace: "nowrap", fontSize: 12 }}>
-                    {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "—"}
+                    {e.timestamp ? (
+                      <span title={new Date(e.timestamp).toISOString()}>
+                        {new Date(e.timestamp).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })}
+                        {" "}
+                        <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                          {new Date(e.timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                      </span>
+                    ) : "—"}
                   </td>
                   <td style={{ padding: "10px 18px" }}><span className="badge badge-blue">{e.stage}</span></td>
                   <td style={{ padding: "10px 18px", color: "var(--text-primary)", maxWidth: 420, fontSize: 12.5 }}>{e.action}</td>
-                  <td style={{ padding: "10px 18px", color: "var(--text-muted)", fontSize: 12.5 }}>{e.agent}</td>
+                  <td style={{ padding: "10px 18px", color: "var(--text-muted)", fontSize: 12.5 }}>
+                    {e.agent === "gemini_flash_lite" ? "Local LLM" : (e.agent || "—")}
+                  </td>
                 </tr>
               ))}
             </tbody>

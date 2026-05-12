@@ -1,12 +1,12 @@
 {
   "_meta": {
-    "built_at": "2026-05-09T21:46:19Z",
+    "built_at": "2026-05-12T20:49:57Z",
     "model": "models/gemini-embedding-2",
     "dim": 512,
     "source": "hook_json_files"
   },
   "audit_emit_hook": {
-    "file_hash": "9f8895d083daa84ee2e6acaac0de5d86",
+    "file_hash": "71cc1f0f9d3ba1b27a31de29ba0dfb7e",
     "embedding": [
       -0.04084913,
       0.030722855,
@@ -527,7 +527,7 @@
     "path": "audit_emit_hook.json"
   },
   "credential_resolve_hook": {
-    "file_hash": "a325d067f3966e43d3c56e6fbaf06981",
+    "file_hash": "e13d9927426f86ed96148681c77c92da",
     "embedding": [
       -0.023654552,
       0.0580047,
@@ -1048,7 +1048,7 @@
     "path": "credential_resolve_hook.json"
   },
   "field_encryption_hook": {
-    "file_hash": "8fb3aa5dad944eb87cd09b1212ed519c",
+    "file_hash": "210b15ecfe1d25d1328ca651dd938bbb",
     "embedding": [
       -0.027116364,
       0.04187048,
@@ -1569,7 +1569,7 @@
     "path": "field_encryption_hook.json"
   },
   "logging_hook": {
-    "file_hash": "93609736b311f9a4b97f17ba141a9667",
+    "file_hash": "39154af8da0b56708efd3a11d77c1983",
     "embedding": [
       -0.027259365,
       0.044402104,
@@ -2090,7 +2090,7 @@
     "path": "logging_hook.json"
   },
   "on_failure_alert_hook": {
-    "file_hash": "eee166b4207fa51603cdee70a47912d3",
+    "file_hash": "05c470ff00c775986d39fef135b6dbcb",
     "embedding": [
       -0.01899871,
       -0.016496299,
@@ -2611,7 +2611,7 @@
     "path": "on_failure_alert_hook.json"
   },
   "post_schema_validation_hook": {
-    "file_hash": "a3778b25127a7e5427d417249a7b254f",
+    "file_hash": "cde3f49c02cac7e6abc406accf0e83ed",
     "embedding": [
       -0.008033193,
       0.05730801,
@@ -3132,7 +3132,7 @@
     "path": "post_schema_validation_hook.json"
   },
   "post_transform_hook": {
-    "file_hash": "03ec3b06374d94f3c4dc2dc8127cccfe",
+    "file_hash": "93446575b62fc0abe1a67118ba00fc5b",
     "embedding": [
       -0.02013513,
       0.07001441,
@@ -3653,7 +3653,7 @@
     "path": "post_transform_hook.json"
   },
   "pre_auth_hook": {
-    "file_hash": "faa769757f7f64ba4122dd7fb1925570",
+    "file_hash": "3de698a47883801332a1b6e1e1f3860f",
     "embedding": [
       -0.01926937,
       0.07379861,
@@ -4174,7 +4174,7 @@
     "path": "pre_auth_hook.json"
   },
   "pre_validation_hook": {
-    "file_hash": "2284204467866e8c023d41517e662f3b",
+    "file_hash": "e6e77243a98f3dcff806a9c41f10f703",
     "embedding": [
       -0.0019935956,
       0.036462966,
@@ -4695,7 +4695,7 @@
     "path": "pre_validation_hook.json"
   },
   "rate_limit_guard_hook": {
-    "file_hash": "6e72e315b29264bba62bac2a863e3979",
+    "file_hash": "2f4decd1237eca64857e47c9dea75c7a",
     "embedding": [
       -0.02181835,
       0.050609216,
@@ -5216,7 +5216,7 @@
     "path": "rate_limit_guard_hook.json"
   },
   "retry_hook": {
-    "file_hash": "9da2d273cb1470983e787f0e17abb7a5",
+    "file_hash": "92d05e1beaf4a5dde403c8f6b3656c54",
     "embedding": [
       -0.05886091,
       0.04451197,
@@ -5737,7 +5737,7 @@
     "path": "retry_hook.json"
   },
   "simulation_intercept_hook": {
-    "file_hash": "81e87a81d255187fd2695f81e2ac34fc",
+    "file_hash": "4647fc220f78f4b7a5a3c910cbfd13c6",
     "embedding": [
       -0.02907142,
       0.06337173,
@@ -6258,7 +6258,7 @@
     "path": "simulation_intercept_hook.json"
   },
   "version_compatibility_hook": {
-    "file_hash": "6fd6eca5ff8b98186d77ef48a6c1ff6d",
+    "file_hash": "184d49c34f766ff8028bc6a0a8e25be2",
     "embedding": [
       0.00834727,
       0.049780853,
