@@ -1,22 +1,17 @@
 {
   "builds": [
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/next"
-    },
-    {
       "src": "backend/main.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": "backend/{catalogs,templates,mocks}/**"
+      }
     }
   ],
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/backend/main.py"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/frontend/$1"
+      "destination": "/backend/main.py"
     }
   ]
 }
