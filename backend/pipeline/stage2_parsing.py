@@ -88,21 +88,20 @@ Critical rules:
 9. DO NOT hallucinate services not mentioned. Only extract what is in the document.
 10. Be exhaustive — it is better to extract too much than to miss anything."""
 
-EXTRACTION_PROMPT_TEMPLATE = """Analyze the following enterprise document(s) and extract ALL integration requirements.
+EXTRACTION_PROMPT_TEMPLATE = """Analyze the enterprise document(s) below and extract ALL integration requirements.
+
+CRITICAL:
+- Extract and return a JSON object with this EXACT structure.
+- Leave fields as null if not mentioned — never fabricate information.
+- If the BRD names a specific API or provider, always include it — even if unfamiliar. The downstream matching engine will handle catalog lookup.
+- Do NOT add input fields that you think an API would need. Only capture what the BRD explicitly states.
+- hook_signals must capture the business trigger condition (score threshold, event type), not just 'webhook mentioned'.
 
 Known categories to classify each detected service into:
 {known_categories}
-
 Use category "other" if a service doesn't fit any known category.
 
----
-DOCUMENT TEXT:
-{document_text}
----
-
-Extract and return a JSON object with this EXACT structure.
-Leave fields as null if not mentioned — never fabricate information.
-
+JSON SCHEMA TO RETURN:
 {{
   "services_detected": [
     {{
@@ -148,12 +147,9 @@ Leave fields as null if not mentioned — never fabricate information.
   }}
 }}
 
-CRITICAL:
-- If the BRD names a specific API or provider, always include it — even if unfamiliar.
-  The downstream matching engine will handle catalog lookup.
-- Do NOT add input fields that you think an API would need. Only capture what the BRD explicitly states.
-- hook_signals must capture the business trigger condition (score threshold, event type), not just
-  'webhook mentioned'.
+<document>
+{document_text}
+</document>
 """
 
 TEMPLATE_FILL_SYSTEM_PROMPT = """You are an enterprise integration configuration engine.

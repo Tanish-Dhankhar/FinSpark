@@ -42,10 +42,25 @@ CLIENT_SUBDIRS = [
 ]
 
 # ── LLM Settings ────────────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Gemini 3.1 Flash Lite (generation)
-# Note: embedding model is GEMINI_EMBEDDING_MODEL = "text-embedding-005" (see above)
-GEMINI_TEMPERATURE = 0.2  # Low temperature for structured extraction
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Kept as fallback only
+GEMINI_TEMPERATURE = 0.2
 GEMINI_MAX_OUTPUT_TOKENS = 16384  # Enough for complex BRDs with many services (was 8192)
+
+# ── Local LLM — Generation (Ollama + Qwen3-8B) ──────────────────────────────
+# Set USE_LOCAL_LLM=True to use local Ollama model for all generation calls.
+# Embeddings always use Google (vector_service.py is unaffected by this toggle).
+USE_LOCAL_LLM       = True
+LOCAL_LLM_BASE_URL  = "http://localhost:11434/v1"  # Ollama OpenAI-compatible endpoint
+LOCAL_LLM_MODEL     = "qwen3.5:9b"                  # Confirmed working via `ollama run qwen3.5:9b`
+LOCAL_LLM_TEMPERATURE = 0.2                        # Low temp for deterministic JSON output
+# IMPORTANT: Keep max_tokens at 4096, NOT 16384.
+# Root cause of Stage 2 hang: Qwen3 in think mode consumes ALL 16384 tokens
+# on <think> blocks, leaving 0 tokens for the actual JSON response → empty output.
+# 4096 is more than enough for any pipeline JSON response.
+LOCAL_LLM_MAX_TOKENS  = 4096
+LOCAL_LLM_TIMEOUT     = 120                        # Seconds — nothink mode is fast
+# Ollama executable path (Windows — may not be in PATH after fresh install)
+OLLAMA_PATH = r"C:\Users\happy\AppData\Local\Programs\Ollama\ollama.exe"
 
 # ── Pipeline Settings ───────────────────────────────────────────────────────
 MAX_CORRECTION_ITERATIONS = 3
