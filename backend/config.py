@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 # ── Base Paths ──────────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent  # FinSpark_2/
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  # FinSpark_finals/
 BACKEND_DIR = PROJECT_ROOT / "backend"
 
 if os.getenv("VERCEL") or os.getenv("VERCEL_ENV"):
@@ -35,11 +35,11 @@ if os.getenv("VERCEL") or os.getenv("VERCEL_ENV"):
 else:
     ADAPTER_EMBEDDINGS_CACHE = ADAPTERS_CATALOG_DIR / "embeddings_cache.json"
     HOOK_EMBEDDINGS_CACHE    = HOOKS_CATALOG_DIR / "embeddings_cache.json"
-VECTOR_TOP_K_ADAPTERS    = 3     # top-3 candidates per service (per-service querying)
-VECTOR_TOP_K_HOOKS       = 5     # top-5 hook candidates per integration
+
+VECTOR_TOP_K_ADAPTERS       = 3     # top-3 candidates per service (per-service querying)
+VECTOR_TOP_K_HOOKS          = 5     # top-5 hook candidates per integration
 VECTOR_SIMILARITY_THRESHOLD = 0.45  # below this → low-confidence warning + fallback
-VECTOR_EMBEDDING_DIM     = 512   # MRL truncation: 33% smaller, <1% accuracy loss
-GEMINI_EMBEDDING_MODEL   = "models/gemini-embedding-2"
+VECTOR_EMBEDDING_DIM        = 768   # nomic-embed-text produces 768-dim vectors
 
 # ── Client Folder Sub-directories ───────────────────────────────────────────
 CLIENT_SUBDIRS = [
@@ -50,11 +50,16 @@ CLIENT_SUBDIRS = [
     "audit",
 ]
 
-# ── LLM Settings ────────────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"  # Gemini 3.1 Flash Lite (generation)
-# Note: embedding model is GEMINI_EMBEDDING_MODEL = "text-embedding-005" (see above)
-GEMINI_TEMPERATURE = 0.2  # Low temperature for structured extraction
-GEMINI_MAX_OUTPUT_TOKENS = 16384  # Enough for complex BRDs with many services (was 8192)
+# ── LM Studio — Generation (Qwen via LM Studio OpenAI-compatible API) ───────
+LM_STUDIO_BASE_URL    = "http://127.0.0.1:1234/v1"
+LM_STUDIO_MODEL       = "qwen2.5-coder-7b-instruct"
+LM_STUDIO_API_KEY     = "lm-studio"   # LM Studio requires any non-empty key
+LM_TEMPERATURE        = 0.2           # Low temperature for structured extraction
+LM_MAX_OUTPUT_TOKENS  = 16384         # Enough for complex BRDs with many services
+
+# ── LM Studio — Embeddings (nomic-embed-text via LM Studio) ─────────────────
+NOMIC_EMBEDDING_MODEL = "text-embedding-nomic-embed-text-v1.5"
+# Note: served at the same LM_STUDIO_BASE_URL above
 
 # ── Pipeline Settings ───────────────────────────────────────────────────────
 MAX_CORRECTION_ITERATIONS = 3
@@ -73,12 +78,8 @@ API_HOST = "0.0.0.0"
 API_PORT = 8000
 CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
-# ── Environment ─────────────────────────────────────────────────────────────
-def get_google_api_key() -> str:
-    """Load GOOGLE_API_KEY from root .env or environment."""
-    from dotenv import load_dotenv
-    load_dotenv(PROJECT_ROOT / ".env")
-    key = os.getenv("GOOGLE_API_KEY")
-    if not key:
-        raise ValueError("GOOGLE_API_KEY not found in .env or environment variables")
-    return key
+# ── Database ─────────────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://finspark:finspark123@localhost:5432/finspark_db"
+)

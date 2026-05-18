@@ -1,0 +1,319 @@
+{
+  "metadata": {
+    "config_id": "config_7ffa18c69495",
+    "config_version": "v1",
+    "created_at": "2026-05-12T08:49:55.671271+00:00",
+    "last_updated_at": "2026-05-12T08:55:44.338345+00:00",
+    "status": "draft",
+    "client": {
+      "client_id": "client_45e3d213",
+      "client_name": "local4",
+      "industry_vertical": "lending",
+      "region": "India",
+      "environment": "sandbox"
+    },
+    "uploaded_documents": [
+      {
+        "filename": "NexGen_BRD.docx",
+        "type": "DOCX"
+      }
+    ],
+    "pipeline_run": {
+      "run_id": "run_3c368d58",
+      "triggered_by": "project_creation",
+      "triggered_at": "2026-05-12T08:49:55.671271+00:00",
+      "overall_status": "awaiting_review",
+      "human_review_status": "pending",
+      "correction_iterations": 0,
+      "max_correction_iterations": 3
+    }
+  },
+  "credential_vault": {
+    "vault_provider": "env_file",
+    "credentials": []
+  },
+  "integrations": [
+    {
+      "integration_id": "karza-kyc-001",
+      "service_name": "Karza KYC",
+      "adapter_id": "karza",
+      "category": "kyc",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v2",
+      "endpoint_url": "https://api.karza.in/v2/kyc-engine/verify",
+      "auth_type": "api_key",
+      "credential_env_vars": [
+        "$KARZA_API_KEY"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "N/A",
+          "api_field": "aadhaar_number",
+          "mapping_type": "missing",
+          "description": "12 digit Aadhaar UID for UIDAI-based verification"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "pan_number",
+          "mapping_type": "missing",
+          "description": "Customer PAN for Income Tax database verification"
+        },
+        {
+          "user_field": "consent",
+          "api_field": "consent",
+          "mapping_type": "direct",
+          "description": "Explicit customer consent for Aadhaar and PAN data access"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "aadhaar_number",
+          "target_field": "aadhaar_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII data at rest and in transit"
+        },
+        {
+          "source_field": "pan_number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII data at rest and in transit"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "description": "Encrypts all PII and sensitive fields in the outbound adapter payload using AES-256-GCM before transmitting over the network.",
+          "execution_order": 5,
+          "is_blocking": true,
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ],
+          "audit_on_trigger": true
+        },
+        {
+          "hook_id": "pre_auth_hook",
+          "hook_name": "pre_auth_hook",
+          "hook_type": "pre-call",
+          "description": "Dynamically constructs and injects the correct authentication header into the outbound HTTP request.",
+          "execution_order": 7,
+          "is_blocking": true,
+          "credential_env_vars": [],
+          "audit_on_trigger": true
+        }
+      ],
+      "timeout_ms": 8000,
+      "retry_policy": {
+        "max_retries": 2,
+        "backoff_strategy": "fixed"
+      },
+      "sandbox_url": "https://sandbox-api.karza.in",
+      "fallback_adapter": "digilocker",
+      "deprecated": false,
+      "sunset_date": "2028-12-31",
+      "_brd_version_hint": null,
+      "_brd_purpose": "Identity verification of the applicant using government-issued identification.",
+      "_brd_input_fields": [
+        "consent"
+      ],
+      "_brd_fallback_hint": null
+    },
+    {
+      "integration_id": "transunion_cibil_integration",
+      "service_name": "TransUnion CIBIL",
+      "adapter_id": "cibil",
+      "category": "bureau",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.cibil.com/v3/consumer/score",
+      "auth_type": "oauth2",
+      "credential_env_vars": [
+        "$CIBIL_OAUTH_CLIENT_ID",
+        "$CIBIL_OAUTH_CLIENT_SECRET"
+      ],
+      "field_mapping": [
+        {
+          "user_field": "N/A",
+          "api_field": "pan_number",
+          "mapping_type": "missing",
+          "description": "Customer PAN for bureau identity lookup"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "full_name",
+          "mapping_type": "missing",
+          "description": "Full name exactly as per PAN card"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "date_of_birth",
+          "mapping_type": "missing",
+          "description": "Date of Birth for identity matching"
+        },
+        {
+          "user_field": "N/A",
+          "api_field": "mobile_number",
+          "mapping_type": "missing",
+          "description": "10 digit mobile number for cross-reference"
+        },
+        {
+          "user_field": "consent_timestamp",
+          "api_field": "consent_timestamp",
+          "mapping_type": "direct",
+          "description": "Timestamp when borrower provided consent for bureau pull"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "pan_number",
+          "target_field": "pan_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII protection"
+        },
+        {
+          "source_field": "mobile_number",
+          "target_field": "mobile_number",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII protection"
+        },
+        {
+          "source_field": "date_of_birth",
+          "target_field": "date_of_birth",
+          "rule_type": "encrypt",
+          "rule": "AES-256 encryption for PII protection"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "field_encryption_hook",
+          "hook_name": "field_encryption_hook",
+          "hook_type": "pre-call",
+          "execution_order": 5,
+          "is_blocking": true,
+          "credential_env_vars": [
+            "$CLIENT_ENCRYPTION_KEY"
+          ],
+          "audit_on_trigger": true
+        },
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "execution_order": 2,
+          "is_blocking": false,
+          "credential_env_vars": [
+            "$ALERT_WEBHOOK_SECRET"
+          ],
+          "audit_on_trigger": true
+        }
+      ],
+      "timeout_ms": 10000,
+      "retry_policy": {
+        "max_retries": 1,
+        "backoff_strategy": "exponential"
+      },
+      "sandbox_url": "https://sandbox-api.cibil.com",
+      "fallback_adapter": "experian",
+      "deprecated": false,
+      "sunset_date": "2027-12-31",
+      "_brd_version_hint": null,
+      "_brd_purpose": "Check the applicant's credit history and score to assess repayment risk.",
+      "_brd_input_fields": [
+        "consent_timestamp"
+      ],
+      "_brd_fallback_hint": null
+    },
+    {
+      "integration_id": "twilio-sms-integration",
+      "service_name": "Twilio SMS",
+      "adapter_id": "twilio",
+      "category": "messaging",
+      "is_mandatory": true,
+      "status": "adapter_matched",
+      "selected_version": "v3",
+      "endpoint_url": "https://api.twilio.com/v3/Accounts/{AccountSid}/Messages.json",
+      "auth_type": "basic_auth",
+      "credential_env_vars": [
+        "$TWILIO_ACCOUNT_SID",
+        "$TWILIO_AUTH_TOKEN"
+      ],
+      "timeout_ms": 3000,
+      "retry_policy": {
+        "max_retries": 3,
+        "backoff_strategy": "exponential"
+      },
+      "sandbox_url": "https://api.twilio.com/sandbox",
+      "deprecated": false,
+      "sunset_date": "2031-12-31",
+      "field_mapping": [
+        {
+          "user_field": "To",
+          "api_field": "to",
+          "mapping_type": "rename",
+          "description": "Destination phone number"
+        },
+        {
+          "user_field": "from",
+          "api_field": "from",
+          "mapping_type": "direct",
+          "description": "Sender ID"
+        },
+        {
+          "user_field": "body",
+          "api_field": "body",
+          "mapping_type": "direct",
+          "description": "SMS content"
+        },
+        {
+          "user_field": "account_sid",
+          "api_field": "account_sid",
+          "mapping_type": "direct",
+          "description": "Twilio Account SID"
+        }
+      ],
+      "transformation_rules": [
+        {
+          "source_field": "To",
+          "target_field": "to",
+          "rule_type": "encrypt",
+          "rule": "PII field must be encrypted before transmission"
+        }
+      ],
+      "hooks": [
+        {
+          "hook_id": "on_failure_alert_hook",
+          "hook_name": "on_failure_alert_hook",
+          "hook_type": "on-failure",
+          "execution_order": 2,
+          "is_blocking": false,
+          "credential_env_vars": [
+            "$ALERT_WEBHOOK_SECRET"
+          ],
+          "audit_on_trigger": true
+        },
+        {
+          "hook_id": "retry_hook",
+          "hook_name": "retry_hook",
+          "hook_type": "retry",
+          "execution_order": 1,
+          "is_blocking": true,
+          "credential_env_vars": [],
+          "audit_on_trigger": true
+        }
+      ],
+      "fallback_adapter": null
+    }
+  ],
+  "diff_history": {
+    "versions": []
+  },
+  "audit_log": {
+    "entries": []
+  },
+  "simulation_report": {
+    "integration_results": []
+  }
+}

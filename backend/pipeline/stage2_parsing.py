@@ -110,6 +110,37 @@ Critical rules:
    Example: "Route to manual review queue if identity verification fails" — NOT "manual review webhook".
 9. DO NOT hallucinate services not mentioned. Only extract what is in the document.
 10. Be exhaustive — it is better to extract too much than to miss anything.
+11. IMPLIED INTEGRATIONS — if the BRD describes a business operation that clearly requires
+    an external API call, but does NOT name a specific vendor or provider, STILL extract
+    a service entry for it. Use:
+      confidence = "medium"      (implied, not explicitly named)
+      provider  = null           (no vendor named)
+      service_name = a short description of the operation (e.g. "Bank Account Verification")
+      category  = your best-fit category (e.g. "banking", "kyc", "bureau")
+    Common patterns that indicate an implied integration:
+      - "verify that the [entity] is valid" without a named provider
+      - "check [data] against" without naming the check service
+      - "validate [field] via" without a named vendor
+      - "penny drop", "bank verification", "account validation" without vendor
+    Do NOT skip these. The downstream engine will match them to a catalog adapter.
+12. HOOK SIGNAL FORMAT — hook_signals entries MUST be event trigger conditions written as:
+      "If [service] returns [value/condition], then [action]"
+    or:
+      "Route to [destination] when [condition]"
+    They must NOT be:
+      • Field notes or descriptions (e.g. "must be true before API call")
+      • Field validation rules
+      • Field format requirements
+    If no clear conditional trigger exists for a service, leave hook_signals as an empty array.
+    A field note is NOT a hook signal.
+13. FIELD TYPE PRECISION — use these rules for field_type:
+      • Use "datetime" for any field described as a timestamp, ISO 8601 DateTime,
+        date+time combined value, or any field whose value includes a time component.
+      • Use "date" ONLY for calendar date-only fields (day/month/year, no time).
+      • Use "string" for phone numbers, IDs, codes, and alphanumeric values.
+      • Use "boolean" for yes/no, true/false, consent, flags.
+      • Use "integer" for numeric counts, scores, amounts with no decimal.
+      • Use "number" for floating-point values.
 
 CATEGORY DISAMBIGUATION — apply before assigning any category:
 
@@ -327,7 +358,7 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
         client_id=client_id,
         stage="stage_2_parsing",
         action=f"Extracted requirements: {len(services)} services detected",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         input_data=combined_text[:200],
         output_data=json.dumps(requirements)[:200],
     )
@@ -437,7 +468,7 @@ def run_stage2(client_id: str, extracted_texts: Dict[str, str]) -> dict:
         client_id=client_id,
         stage="stage_2_parsing",
         action=f"Config skeleton filled with {integrations_count} stubs ({len(filtered_out)} fallbacks/mentioned-only filtered)",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         input_data=json.dumps(requirements)[:200],
         output_data=json.dumps(filled_config)[:200],
     )

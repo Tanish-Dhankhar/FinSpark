@@ -48,13 +48,25 @@ REASONING_PROMPT = """You are given two inputs:
 
 ---
 
-Generate a **Reasoning Report** in markdown format covering ALL of the following sections:
+Generate a **Reasoning Report** in markdown format.
+
+**CRITICAL — follow this order before writing any section:**
+1. First, scan the BRD text and count all services/APIs mentioned.
+2. Cross-reference that list against the integrations array.
+3. Use the cross-reference result to write accurate coverage counts in EVERY section.
+   Never state "all services matched" if the cross-reference reveals unmatched services.
+
+Cover ALL of the following sections:
 
 ## 1. Adapter Selection Rationale
 For each integration, explain:
 - Which adapter was chosen and why (use the `_adapter_reason` from the config)
 - The match confidence level and semantic similarity score if available
 - If no adapter was matched (`adapter_id: "unmatched"`), add a ⚠️ warning with the service name
+- **Integration ID validation**: for each integration, verify that `integration_id` follows
+  `snake_case_with_suffix_001` format (all lowercase, underscores, no hyphens, no uppercase).
+  If any integration_id violates this format (e.g., `INT-CIBIL-001`, `karza-kyc-001`), add a
+  ⚠️ **ID FORMAT WARNING** block noting the non-compliant ID and what it should be corrected to.
 
 ## 2. Version Selection & Deprecation Notices
 For each integration, explain:
@@ -69,11 +81,18 @@ For each missing field, create a table row:
 
 | Integration | Missing Field | API Requirement | Suggested Source |
 |-------------|---------------|-----------------|------------------|
-| e.g. cibil  | mobile_number | Required for identity match | Collect in applicant intake form or source from upstream KYC |
+| e.g. cibil  | mobile_number | Required for identity match | Source from upstream KYC service response |
+
+**IMPORTANT for Suggested Source column:**
+- First check if the missing field exists anywhere in the BRD (look in raw BRD text).
+  If it does: write "Already in BRD global fields — wire from applicant data payload at runtime."
+  Do NOT say "add to intake form" if the field already exists in the BRD.
+- If the field genuinely does not appear anywhere in the BRD, check if another integration
+  in this config could provide it (e.g., KYC service providing PAN to Bureau).
+- Only suggest "Add to applicant intake form" if the field is absent from both the BRD
+  and all upstream service responses.
 
 After the table, add a ⚠️ callout: "These fields must be resolved before production deployment."
-For each missing field, suggest which upstream service in THIS config could provide it at runtime
-(e.g. "pan_number for RiskGuard can be sourced from the Karza KYC response").
 
 ## 4. Unmatched APIs / Services
 Cross-reference the BRD text against the integrations array:
@@ -81,6 +100,7 @@ Cross-reference the BRD text against the integrations array:
 - For each unmatched service, suggest: (a) whether a similar adapter exists in common catalogs,
   (b) whether a new adapter JSON should be created in `backend/catalogs/adapters/`
 - If all BRD services are fully covered, state that explicitly with ✅
+- **Use the count from this section to write the Coverage line in Section 6.**
 
 ## 5. Field Mapping Summary
 For each integration, independently derive:
@@ -92,9 +112,9 @@ For each integration, independently derive:
   If an integration has no PII fields in its field_mapping, state "No PII fields mapped."
 
 ## 6. Overall Assessment
-Provide a structured assessment:
+Provide a structured assessment. Use the unmatched count derived in Section 4.
 
-**Coverage**: [X/Y integrations fully matched, Z with missing fields]
+**Coverage**: [X/Y integrations fully matched based on Section 4 cross-reference, Z with missing fields]
 **Confidence**: [High / Medium / Low — justify briefly]
 **Critical Actions Required** (⚠️ must fix before production):
 1. [action 1]
@@ -214,7 +234,7 @@ def run_stage4(client_id: str, extracted_texts: dict) -> str:
         stage="stage_4_reasoning",
         action=f"Reasoning report generated: {len(integrations)} integrations analyzed, "
                f"{missing_fields} missing fields flagged, {unmatched} unmatched services",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         output_data=reasoning_md[:200],
     )
 

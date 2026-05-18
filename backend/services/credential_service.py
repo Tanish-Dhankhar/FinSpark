@@ -1,85 +1,108 @@
 """
-Credential Service
-Handles per-client .env file operations.
-Credentials are never logged or stored in config — only env var names are referenced.
+Credential Service — PostgreSQL-backed
+Replaces per-client .env files with the credentials table.
+Interface is 100% backward-compatible with the old .env-based version.
 """
-import os
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional, Dict
 
-from backend.config import CLIENTS_DIR
+from backend.database.connection import get_db_for_client
 
 
 def read_client_env(client_id: str) -> Dict[str, str]:
     """
-    Read all key-value pairs from a client's .env file.
+    Read all key-value pairs for a client from the credentials table.
     Returns a dict of VAR_NAME -> value.
-    Skips comments and blank lines.
     """
-    env_path = CLIENTS_DIR / client_id / ".env"
-    if not env_path.exists():
-        return {}
-
-    env_vars = {}
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" in line:
-            key, _, value = line.partition("=")
-            env_vars[key.strip()] = value.strip()
-    return env_vars
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT var_name, var_value FROM credentials WHERE client_id = %s",
+                (client_id,),
+            )
+            rows = cur.fetchall()
+    return {row[0]: row[1] for row in rows}
 
 
 def resolve_credential(client_id: str, env_var_name: str) -> Optional[str]:
     """
-    Resolve a single credential by its environment variable name.
-    Never logs the actual value — only the variable name in audit.
-    
+    Resolve a single credential by its variable name.
+    Never logs the actual value.
+
     Args:
-        client_id: The client folder ID
-        env_var_name: The environment variable name (e.g., 'CIBIL_API_KEY')
-        
+        client_id:    The client ID
+        env_var_name: The variable name (e.g., 'CIBIL_API_KEY')
+
     Returns:
         The credential value, or None if not found
     """
-    env_vars = read_client_env(client_id)
-    return env_vars.get(env_var_name)
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT var_value FROM credentials WHERE client_id = %s AND var_name = %s",
+                (client_id, env_var_name),
+            )
+            row = cur.fetchone()
+    return row[0] if row else None
 
 
 def write_credential(client_id: str, env_var_name: str, value: str) -> None:
     """
-    Write or update a credential in the client's .env file.
-    
+    Write or update a credential in the credentials table (UPSERT).
+
     Args:
-        client_id: The client folder ID
-        env_var_name: The environment variable name
-        value: The credential value to store
+        client_id:    The client ID
+        env_var_name: The variable name
+        value:        The credential value to store
     """
-    env_path = CLIENTS_DIR / client_id / ".env"
-    env_path.parent.mkdir(parents=True, exist_ok=True)
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO credentials (client_id, var_name, var_value, updated_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (client_id, var_name)
+                DO UPDATE SET var_value = EXCLUDED.var_value,
+                              updated_at = EXCLUDED.updated_at
+                """,
+                (client_id, env_var_name, value, datetime.now(timezone.utc)),
+            )
 
-    # Read existing content
-    existing_lines = []
-    if env_path.exists():
-        existing_lines = env_path.read_text(encoding="utf-8").splitlines()
 
-    # Check if key already exists — update it
-    updated = False
-    for i, line in enumerate(existing_lines):
-        stripped = line.strip()
-        if stripped.startswith(env_var_name + "="):
-            existing_lines[i] = f"{env_var_name}={value}"
-            updated = True
-            break
+def write_credentials_bulk(client_id: str, env_vars: Dict[str, str]) -> None:
+    """
+    Write multiple credentials at once (batch UPSERT).
+    Used when scanning config for $ENV_VAR references.
 
-    if not updated:
-        existing_lines.append(f"{env_var_name}={value}")
-
-    env_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
+    Args:
+        client_id: The client ID
+        env_vars:  Dict of VAR_NAME -> value (empty string for placeholders)
+    """
+    if not env_vars:
+        return
+    now = datetime.now(timezone.utc)
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            for var_name, var_value in env_vars.items():
+                cur.execute(
+                    """
+                    INSERT INTO credentials (client_id, var_name, var_value, updated_at)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (client_id, var_name)
+                    DO UPDATE SET updated_at = EXCLUDED.updated_at
+                    -- Only update timestamp; preserve existing values user may have filled in
+                    """,
+                    (client_id, var_name, var_value, now),
+                )
 
 
 def list_credential_vars(client_id: str) -> list:
     """List all credential variable names (NOT values) for a client."""
-    env_vars = read_client_env(client_id)
-    return list(env_vars.keys())
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT var_name FROM credentials WHERE client_id = %s ORDER BY var_name",
+                (client_id,),
+            )
+            rows = cur.fetchall()
+    return [row[0] for row in rows]

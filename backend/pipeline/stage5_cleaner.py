@@ -36,7 +36,17 @@ Rules:
     be a verbatim copy of a prompt instruction (e.g., it reads like an imperative
     sentence, contains "keep the existing", "copy from", "use the value from"),
     clear that field to null and log it in cleanup_warnings.
-14. Return the complete cleaned config as valid JSON"""
+14. Return the complete cleaned config as valid JSON
+15. HOOK FIELDS PROTECTION — within each hook object, NEVER remove or nullify:
+    input_parameters, output, payload_template, timeout_ms, retry_policy,
+    execution_order, is_blocking, lifecycle_state, credential_env_vars.
+    These are runtime-required schema fields. Only remove _reason annotation keys.
+16. DO NOT modify the "environment" field on any integration — leave it exactly
+    as it was. This field is controlled by the deployment promotion gate, not the cleaner.
+17. DO NOT change integration "status" values — statuses like "adapter_matched",
+    "unmatched", "simulation_passed" are pipeline state markers, not dev artifacts.
+18. DO NOT remove "mapping_type", "user_field", "api_field", or "description" from
+    field_mapping entries. These are schema-structural fields, not annotations."""
 
 CLEANER_PROMPT = """Clean this integration configuration for production readiness:
 
@@ -51,27 +61,67 @@ Specific checks:
 Return the complete cleaned configuration as valid JSON."""
 
 
-def _post_process_clean(config: dict) -> dict:
+def _post_process_clean(config: dict, original_config: dict) -> dict:
     """
     Programmatic post-processing after LLM cleaning.
-    Catches things the LLM might have missed.
+    Catches things the LLM might have missed and restores protected fields.
     """
-    config_str = json.dumps(config)
+    # [FIX C4] Restore environment and status from original — these are gated fields
+    # that the cleaner must NEVER modify. Only the deployment promotion gate changes them.
+    PROTECTED_INTEGRATION_FIELDS = {"environment", "status"}
+    orig_integ_map = {
+        (i.get("integration_id") or i.get("service_name", "")): i
+        for i in original_config.get("integrations", [])
+    }
+    for integ in config.get("integrations", []):
+        key = integ.get("integration_id") or integ.get("service_name", "")
+        orig = orig_integ_map.get(key)
+        if orig:
+            for field in PROTECTED_INTEGRATION_FIELDS:
+                if field in orig:
+                    integ[field] = orig[field]  # always restore from pre-clean snapshot
 
-    # Pattern: anything that looks like an actual API key (40+ char alphanumeric)
-    # But NOT $ENV_VAR references or URLs
-    suspicious_patterns = [
-        # Bearer tokens
-        (r'"(Bearer\s+[A-Za-z0-9_\-\.]{20,})"', '"$BEARER_TOKEN"'),
-        # Long hex strings that look like keys (32+ chars)
-        (r'"([a-f0-9]{32,})"', None),  # Will be handled case by case
-    ]
+    # [FIX H11] Restore hook runtime fields that the LLM may have stripped.
+    # These are schema-structural fields required at execution time.
+    PROTECTED_HOOK_FIELDS = {
+        "input_parameters", "output", "payload_template",
+        "timeout_ms", "retry_policy", "execution_order",
+        "is_blocking", "lifecycle_state", "credential_env_vars",
+    }
+    orig_hooks_by_id: dict = {}
+    for oi in original_config.get("integrations", []):
+        for oh in oi.get("hooks", []):
+            hid = oh.get("hook_id") or oh.get("hook_name", "")
+            if hid:
+                orig_hooks_by_id[hid] = oh
+
+    for integ in config.get("integrations", []):
+        for hook in integ.get("hooks", []):
+            hid = hook.get("hook_id") or hook.get("hook_name", "")
+            orig_hook = orig_hooks_by_id.get(hid)
+            if orig_hook:
+                for field in PROTECTED_HOOK_FIELDS:
+                    if field in orig_hook and field not in hook:
+                        hook[field] = orig_hook[field]
+                        print(f"     🔧 Restored hook field '{field}' on '{hid}' (cleaner had stripped it)")
 
     # Ensure pipeline_run status fields are clean
     if "metadata" in config and "pipeline_run" in config["metadata"]:
         pr = config["metadata"]["pipeline_run"]
         if "overall_status" not in pr:
             pr["overall_status"] = "draft"
+
+    # [FIX M12] Restore all structural pipeline_run fields from original
+    if "metadata" in original_config and "pipeline_run" in original_config["metadata"]:
+        orig_pr = original_config["metadata"]["pipeline_run"]
+        if "metadata" not in config:
+            config["metadata"] = {}
+        if "pipeline_run" not in config["metadata"]:
+            config["metadata"]["pipeline_run"] = {}
+        pr = config["metadata"]["pipeline_run"]
+        for pr_field in ("stages_completed", "current_stage", "started_at", "last_updated"):
+            if pr_field in orig_pr and pr_field not in pr:
+                pr[pr_field] = orig_pr[pr_field]
 
     # Fix 9B: Deterministic integration_id placeholder detection
     # Catches leaked prompt instruction text the LLM cleaner may have missed.
@@ -150,7 +200,7 @@ def run_stage5(client_id: str) -> dict:
     if "metadata" not in cleaned_config:
         cleaned_config["metadata"] = current_config.get("metadata", {})
 
-    # ── Restore ANY dropped fields in integrations ─────────
+    # ── Restore ANY dropped fields in integrations ──────
     for orig_integ in current_config.get("integrations", []):
         key = orig_integ.get("integration_id") or orig_integ.get("adapter_id") or orig_integ.get("service_name", "")
         if not key:
@@ -160,7 +210,7 @@ def run_stage5(client_id: str) -> dict:
             if ckey == key:
                 # Restore hooks specifically to print a message
                 if "hooks" in orig_integ and "hooks" not in cleaned_integ:
-                    print(f"     🪝 Restored hooks for '{key}' (cleaner dropped them)")
+                    print(f"     🧲 Restored hooks for '{key}' (cleaner dropped them)")
                 # Restore all missing fields
                 for k, v in orig_integ.items():
                     if k.endswith("_reason") or k == "mapping_reason":
@@ -169,8 +219,24 @@ def run_stage5(client_id: str) -> dict:
                         cleaned_integ[k] = v
                 break
 
-    # Post-process
-    cleaned_config = _post_process_clean(cleaned_config)
+    # [FIX C5] Missing-field production gate — warn loudly for every missing mapping.
+    # Downstream Stage 6 and production gating systems will use this to block deployments.
+    missing_field_count = 0
+    for integ in cleaned_config.get("integrations", []):
+        svc_name = integ.get("service_name", integ.get("integration_id", "unknown"))
+        for fm in integ.get("field_mapping", []):
+            if fm.get("mapping_type") == "missing":
+                missing_field_count += 1
+                print(f"     ⚠️  MISSING FIELD [{svc_name}] → '{fm.get('api_field')}' — must be resolved before production")
+    if missing_field_count:
+        print(f"     🔴 PRODUCTION GATE: {missing_field_count} missing field mapping(s) detected. Set to 'blocked' in pipeline_run.")
+        if "metadata" in cleaned_config and "pipeline_run" in cleaned_config["metadata"]:
+            pr = cleaned_config["metadata"]["pipeline_run"]
+            pr["missing_field_count"] = missing_field_count
+            pr["production_gate"] = "blocked" if missing_field_count > 0 else "clear"
+
+    # Post-process (pass original for protected field restoration)
+    cleaned_config = _post_process_clean(cleaned_config, current_config)
 
     # Count what was cleaned
     original_str = json.dumps(current_config)
@@ -190,7 +256,7 @@ def run_stage5(client_id: str) -> dict:
         client_id=client_id,
         stage="stage_5_cleaner",
         action=f"Config cleaned for production (size delta: {size_diff:+d} chars)",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         input_data=original_str[:200],
         output_data=cleaned_str[:200],
     )

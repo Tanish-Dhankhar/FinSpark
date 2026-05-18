@@ -40,10 +40,10 @@
     {
       "version": "v2",
       "endpoint": "/v2/tucibil/report",
-      "status": "Stable",
+      "status": "Deprecated",
       "maturity_score": 3,
-      "deprecated": false,
-      "release_notes": "Older static report dump",
+      "deprecated": true,
+      "release_notes": "Older static report dump — sunset 2026-05-04. Migrate to v3.",
       "sunset_date": "2026-05-04"
     },
     {

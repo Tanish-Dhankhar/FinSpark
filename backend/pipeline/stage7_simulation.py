@@ -20,26 +20,35 @@ Analyze the field_mapping data and produce a structured quality report.
 SCORING FORMULA -- apply this EXACTLY for each integration:
 
   Step 1: Count fields
-    mapped_count  = count of field_mapping entries where mapping_type != "missing"
-    missing_count = count of field_mapping entries where mapping_type == "missing"
-    total_fields  = mapped_count + missing_count
+    required_missing_count = count of field_mapping entries where mapping_type == "missing"
+                              AND mapping_type is NOT "computed" (computed fields are auto-resolved).
+    required_mapped_count  = count of field_mapping entries where mapping_type != "missing"
+    total_required_fields  = required_mapped_count + required_missing_count
+
+    NOTE: Optional fields (api_field entries that come from adapter optional_fields) that are
+    "missing" do NOT count as missing_count. Only missing REQUIRED fields penalise the score.
+    If in doubt, treat mapping_type=="missing" as a required field miss.
 
   Step 2: Calculate score
-    base_score       = (mapped_count / total_fields) * 100
-                       [if total_fields == 0: base_score = 100, skip to Step 3]
-    missing_penalty  = missing_count * 15
+    base_score       = (required_mapped_count / total_required_fields) * 100
+                       [if total_required_fields == 0: base_score = 100, skip to Step 3]
+    missing_penalty  = required_missing_count * 15
     confidence_score = max(0, round(base_score - missing_penalty))
 
   Worked example:
-    field_mapping has 7 entries: 5 mapped, 2 missing
+    field_mapping has 7 entries: 5 mapped/computed, 2 missing (required)
     base_score       = (5 / 7) * 100 = 71.4
     missing_penalty  = 2 * 15 = 30
     confidence_score = max(0, round(71.4 - 30)) = 41  -> status: "failed"
 
   Step 3: Assign status
-    "passed"  -- confidence_score >= 75 AND missing_count == 0
-    "warning" -- confidence_score >= 50 AND missing_count == 0
-    "failed"  -- confidence_score < 50 OR missing_count > 0
+    "passed"  -- confidence_score >= 75 AND required_missing_count == 0
+    "warning" -- confidence_score >= 50 AND required_missing_count > 0 AND confidence_score < 75
+    "failed"  -- confidence_score < 50 OR (required_missing_count > 0 AND confidence_score < 50)
+
+    CLARIFICATION: An integration scores "warning" when it is PARTIALLY mapped (some required
+    fields missing, but score still >= 50). It scores "failed" only when confidence < 50.
+    An integration with ALL required fields mapped and score >= 75 scores "passed".
 
   Step 4: Determine overall_passed (set LAST, after all statuses are assigned)
     overall_passed = true  ONLY IF  count(status == "failed") == 0
@@ -49,6 +58,8 @@ SCORING FORMULA -- apply this EXACTLY for each integration:
 FORBIDDEN PENALTIES -- never apply a penalty for:
   - Having zero transformation_rules
   - Having fewer hooks than expected
+  - Optional fields that are unmapped (they are optional by definition)
+  - computed fields (these are vault-resolved, never user-supplied)
   - Any condition not listed in Steps 1-3 above
 
 For missing_mandatory_fields: list the api_field value for every entry where
@@ -68,31 +79,38 @@ Generate a simulation report as JSON:
   "report_id": "sim_{random_id}",
   "generated_at": "{timestamp}",
   "overall_confidence_score": <number 0-100, average of all integration confidence_scores>,
-  "overall_passed": <true if no integration has status=\"failed\", false otherwise>,
+  "overall_passed": <true if no integration has status="failed", false otherwise>,
   "total_integrations_tested": <number>,
-  "passed_count": <count of status=\"passed\">,
-  "failed_count": <count of status=\"failed\">,
-  "human_readable_summary": "Clear paragraph: how many passed/warned/failed and why",
-  "recommended_actions": ["specific actions for each failed/warning integration"],
+  "passed_count": <count of status="passed">,
+  "warning_count": <count of status="warning">,
+  "failed_count": <count of status="failed">,
+  "human_readable_summary": "Clear paragraph: how many passed/warned/failed and why. For each failed integration, name it and state the specific missing required fields.",
+  "recommended_actions": ["specific actionable fix for each failed/warning integration"],
   "integration_results": [
     {{
       "integration_id": "id from config",
       "adapter_id": "adapter_id from config",
       "version_tested": "selected_version from config",
-      "status": "passed | warning | failed — apply rules from system instructions",
+      "status": "passed | warning | failed — apply rules from system instructions EXACTLY",
       "confidence_score": <0-100 integer>,
-      "fields_mapped_correctly": <count of field_mapping entries NOT mapping_type=\"missing\">,
+      "fields_mapped_correctly": <count of field_mapping entries NOT mapping_type="missing">,
       "total_required_fields": <total field_mapping entries>,
       "type_mismatches": ["any field type or format issues found"],
       "missing_mandatory_fields": ["api_field names where mapping_type=\"missing\""],
       "transformation_rule_failures": ["any transformation rules that cannot be applied"],
-      "notes": "one sentence summary for this integration"
+      "notes": "one sentence summary: state the status reason clearly (e.g. '2 required fields missing: X, Y')"
     }}
   ]
 }}
 
-IMPORTANT: Apply the pass/warning/fail rules from the system instruction exactly.
-Do not mark an integration as failed just because optional fields are missing.
+IMPORTANT RULES:
+- Apply the pass/warning/fail rules from the system instruction EXACTLY.
+- Do NOT mark an integration as failed just because optional fields are missing.
+- Do NOT mark an integration as failed because it has no transformation_rules.
+- For 'warning' status: confidence_score must be >= 50 with some required fields missing (not zero mapped).
+- For 'failed' status: only when confidence_score < 50.
+- For 'passed' status: ALL required fields mapped AND confidence_score >= 75.
+- Credential/computed fields (mapping_type='computed') count as MAPPED, never as missing.
 """
 
 
@@ -132,7 +150,10 @@ def _simulate_integration(integration: dict) -> dict:
     """Simulate a single integration using mock responses."""
     adapter_id = integration.get("adapter_id", "unknown")
     version = integration.get("selected_version", "v1")
-    
+    credential_env_vars = set(
+        v.lstrip("$") for v in integration.get("credential_env_vars", [])
+    )
+
     mock_response = _load_mock_response(adapter_id, version)
     field_mapping = integration.get("field_mapping", [])
     transformation_rules = integration.get("transformation_rules", [])
@@ -140,7 +161,25 @@ def _simulate_integration(integration: dict) -> dict:
     # Check field mapping coverage
     mapped_fields = [m.get("api_field", "") for m in field_mapping]
     response_fields = list(mock_response.keys()) if isinstance(mock_response, dict) else []
-    
+
+    # [FIX C6] Detect credential fields incorrectly mapped as user-provided.
+    # If an api_field name matches a credential_env_var but mapping_type is not 'computed',
+    # that is a security misconfiguration — flag it in the simulation result.
+    credential_misconfigs: list = []
+    OBVIOUS_CRED_TOKENS = {"account_sid", "api_key", "auth_token", "client_secret",
+                           "access_token", "secret_token", "client_id", "refresh_token"}
+    for fm in field_mapping:
+        api_field = (fm.get("api_field") or "").lower()
+        mtype = fm.get("mapping_type", "")
+        if mtype not in ("computed", "missing") and (
+            api_field in OBVIOUS_CRED_TOKENS
+            or any(api_field in v.lower() for v in credential_env_vars)
+        ):
+            credential_misconfigs.append(
+                f"SECURITY: '{fm.get('api_field')}' is a credential field but mapped as "
+                f"'{mtype}' (user-provided). Must be mapping_type='computed' resolved from vault."
+            )
+
     return {
         "integration_id": integration.get("integration_id", "unknown"),
         "adapter_id": adapter_id,
@@ -150,6 +189,7 @@ def _simulate_integration(integration: dict) -> dict:
         "transformation_rules_count": len(transformation_rules),
         "response_fields": response_fields,
         "mock_available": not mock_response.get("_mock", False),
+        "credential_misconfigs": credential_misconfigs,
     }
 
 
@@ -254,7 +294,11 @@ def run_stage7(client_id: str) -> dict:
     if integration_results:
         passed_count = sum(
             1 for ir in integration_results
-            if ir.get("status", "").lower() in ("passed", "warning")
+            if ir.get("status", "").lower() == "passed"
+        )
+        warning_count = sum(
+            1 for ir in integration_results
+            if ir.get("status", "").lower() == "warning"
         )
         failed_count = sum(
             1 for ir in integration_results
@@ -268,6 +312,7 @@ def run_stage7(client_id: str) -> dict:
         total_score = sum(ir.get("confidence_score", 0) for ir in scored_results)
 
         report["passed_count"] = passed_count
+        report["warning_count"] = warning_count
         report["failed_count"] = failed_count
         report["skipped_count"] = skipped_count
         report["total_integrations_tested"] = len(integration_results)
@@ -304,14 +349,14 @@ def run_stage7(client_id: str) -> dict:
     
     print(f"\n  📈 Simulation Results:")
     print(f"     Confidence Score: {confidence}%")
-    print(f"     Passed: {passed}, Failed: {failed}")
+    print(f"     Passed: {passed}, Warning: {report.get('warning_count', 0)}, Failed: {failed}")
     print(f"     Report saved: {report_filename}")
 
     emit_audit_event(
         client_id=client_id,
         stage="stage_7_simulation",
         action=f"Simulation complete: {confidence}% confidence, {passed} passed, {failed} failed",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         output_data=json.dumps(report)[:200],
     )
 

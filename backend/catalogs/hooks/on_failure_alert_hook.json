@@ -74,7 +74,7 @@
       "type": "string",
       "required": true,
       "description": "Destination webhook URL for ops alert",
-      "default_value": "https://hooks.slack.com/services/T0000/B000"
+      "default_value": "$ALERT_WEBHOOK_URL"
     }
   ],
   "output": {

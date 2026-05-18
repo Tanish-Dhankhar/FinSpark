@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "built_at": "2026-05-12T20:49:57Z",
-    "model": "models/gemini-embedding-2",
-    "dim": 512,
+    "built_at": "2026-05-18T17:19:51Z",
+    "model": "text-embedding-nomic-embed-text-v1.5",
+    "dim": 768,
     "source": "hook_json_files"
   },
   "audit_emit_hook": {
@@ -2090,7 +2090,7 @@
     "path": "logging_hook.json"
   },
   "on_failure_alert_hook": {
-    "file_hash": "05c470ff00c775986d39fef135b6dbcb",
+    "file_hash": "99355a74f1498108783331972d3c8ef6",
     "embedding": [
       -0.01899871,
       -0.016496299,

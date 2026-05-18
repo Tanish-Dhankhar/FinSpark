@@ -25,6 +25,8 @@ export const listProjects = () => api("/api/projects");
 export const createProject = (name: string) =>
   api("/api/projects", { method: "POST", body: JSON.stringify({ client_name: name }) });
 export const getProject = (id: string) => api(`/api/projects/${id}`);
+export const deleteProject = (id: string) =>
+  api(`/api/projects/${id}`, { method: "DELETE" });
 export const getLatestConfig = (id: string) => api(`/api/projects/${id}/configs/latest`);
 export const listConfigs = (id: string) => api(`/api/projects/${id}/configs`);
 export const getConfigFile = (id: string, filename: string) =>

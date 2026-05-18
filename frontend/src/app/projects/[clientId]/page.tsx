@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
   getProject, getLatestConfig, getPipelineStatus,
@@ -9,6 +9,7 @@ import {
   listConfigs, getConfigFile, diffConfigs, saveConfigFile,
   getCredentials, saveCredentials, runDetailedSimulation,
   migrateVersion, getReasoningReport, rerunPipeline,
+  deleteProject,
 } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -30,6 +31,7 @@ export default function ProjectDetailPage() {
   const { clientId: rawClientId } = useParams<{ clientId: string }>();
   const clientId = rawClientId as string;
   const { role, clientId: boundClientId } = useAuth();
+  const router = useRouter();
 
   // Role-based tab filtering
   const TABS = role === "standard"
@@ -48,6 +50,9 @@ export default function ProjectDetailPage() {
   const [reviewMsg, setReviewMsg] = useState("");
   const [loading, setLoading] = useState(true);
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const fetchAll = useCallback(async () => {
     try {
@@ -103,6 +108,20 @@ export default function ProjectDetailPage() {
       setReviewMsg(r.message || "Changes applied!"); setFeedback(""); setTimeout(() => fetchAll(), 1000);
     } catch (e: any) { setReviewMsg(e.message); }
     finally { setReviewLoading(false); }
+  };
+
+  const handleDeleteProject = async () => {
+    setDeleteLoading(true); setDeleteError("");
+    try {
+      await deleteProject(clientId);
+      setShowDeleteModal(false);
+      // Use hard navigation so the dashboard remounts and re-fetches
+      // the project list (router.push is client-side and won't re-run useEffect)
+      window.location.href = "/";
+    } catch (e: any) {
+      setDeleteError(e.message || "Failed to delete project");
+      setDeleteLoading(false);
+    }
   };
 
   if (loading) return (
@@ -210,12 +229,128 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="tab-bar" style={{ marginBottom: 22 }}>
-        {TABS.map(t => (
-          <button key={t} className={`tab-item ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>{t}</button>
-        ))}
+      {/* Tabs + Delete button */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+        <div className="tab-bar" style={{ margin: 0, flex: 1 }}>
+          {TABS.map(t => (
+            <button key={t} className={`tab-item ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>{t}</button>
+          ))}
+        </div>
+        {role !== "standard" && (
+          <button
+            id="delete-project-btn"
+            onClick={() => { setShowDeleteModal(true); setDeleteError(""); }}
+            title="Delete this project"
+            style={{
+              marginLeft: 12, flexShrink: 0,
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+              border: "1px solid #fecaca",
+              background: "#fff5f5",
+              color: "#b91c1c",
+              cursor: "pointer",
+              transition: "all 0.15s",
+              letterSpacing: "0.01em",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "#fef2f2";
+              e.currentTarget.style.borderColor = "#f87171";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(220,38,38,0.12)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "#fff5f5";
+              e.currentTarget.style.borderColor = "#fecaca";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+              <path d="M10 11v6"/><path d="M14 11v6"/>
+              <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+            </svg>
+            Delete Project
+          </button>
+        )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1000,
+            background: "rgba(15,23,42,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(4px)",
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}
+        >
+          <div className="animate-in" style={{
+            background: "var(--bg-primary)",
+            borderRadius: 16, padding: 32, maxWidth: 420, width: "90%",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.2)",
+            border: "1px solid var(--border-subtle)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: "#fef2f2",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 22, flexShrink: 0,
+              }}>🗑️</div>
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 2 }}>Delete Project?</h3>
+                <p style={{ fontSize: 12.5, color: "var(--text-muted)", lineHeight: 1.4 }}>
+                  This will permanently remove <strong>{project?.client_name || clientId}</strong> and all its data.
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              padding: "12px 14px", borderRadius: 10,
+              background: "#fff5f5", border: "1px solid #fecaca",
+              fontSize: 12.5, color: "#b91c1c", marginBottom: 22, lineHeight: 1.5,
+            }}>
+              ⚠️ This action <strong>cannot be undone</strong>. All configs, documents, audit logs, and credentials will be deleted.
+            </div>
+
+            {deleteError && (
+              <p style={{ fontSize: 12.5, color: "#dc2626", marginBottom: 14, padding: "8px 12px", background: "#fef2f2", borderRadius: 8 }}>
+                ✗ {deleteError}
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleteLoading}
+                style={{
+                  padding: "9px 20px", borderRadius: 9, fontSize: 13, fontWeight: 600,
+                  border: "1px solid var(--border-subtle)", background: "white",
+                  color: "var(--text-secondary)", cursor: "pointer",
+                }}
+              >Cancel</button>
+              <button
+                id="confirm-delete-project-btn"
+                onClick={handleDeleteProject}
+                disabled={deleteLoading}
+                style={{
+                  padding: "9px 22px", borderRadius: 9, fontSize: 13, fontWeight: 700,
+                  border: "none",
+                  background: deleteLoading ? "#fca5a5" : "#dc2626",
+                  color: "white", cursor: deleteLoading ? "wait" : "pointer",
+                  display: "flex", alignItems: "center", gap: 7,
+                  transition: "all 0.15s",
+                  boxShadow: deleteLoading ? "none" : "0 4px 14px rgba(220,38,38,0.3)",
+                }}
+              >
+                {deleteLoading ? (
+                  <><span style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} /> Deleting…</>
+                ) : "Delete Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div key={activeTab} className="animate-in">

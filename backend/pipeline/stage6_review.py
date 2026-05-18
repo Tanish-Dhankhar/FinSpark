@@ -155,7 +155,7 @@ def request_changes(client_id: str, feedback: str, reviewer: str = "human_review
         client_id=client_id,
         stage="stage_6_review",
         action=f"Correction {current_iterations + 1} applied, saved as v{new_version}",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
         responsible=reviewer,
         input_data=feedback[:200],
     )

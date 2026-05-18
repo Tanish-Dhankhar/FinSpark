@@ -1,12 +1,12 @@
 """
-LLM Service — Google Gemini
-Centralized wrapper for the Gemini generation API.
+LLM Service — Local Qwen via LM Studio
+Centralized wrapper for the LM Studio generation API (OpenAI-compatible).
 
 Key design decisions:
-  - Uses google-generativeai SDK with GEMINI_MODEL from config.
-  - JSON enforcement via response_mime_type="application/json" where supported,
+  - Uses openai Python SDK pointed at LM Studio's local server (http://127.0.0.1:1234/v1).
+  - JSON enforcement via response_format={"type": "json_object"} where supported,
     with 4-tier fallback recovery for robustness.
-  - Retry loop with short fixed delays for transient API errors.
+  - Retry loop with short fixed delays for transient connection errors.
   - Per-call max_tokens override supported to cap output length per stage.
 """
 import json
@@ -14,47 +14,32 @@ import time
 import traceback
 from typing import Optional
 
-import google.generativeai as genai
-from langsmith import traceable
+from openai import OpenAI
 
 from backend.config import (
-    GEMINI_MODEL,
-    GEMINI_TEMPERATURE,
-    GEMINI_MAX_OUTPUT_TOKENS,
-    get_google_api_key,
+    LM_STUDIO_BASE_URL,
+    LM_STUDIO_MODEL,
+    LM_STUDIO_API_KEY,
+    LM_TEMPERATURE,
+    LM_MAX_OUTPUT_TOKENS,
 )
 
 
-# -- Singleton model instance --------------------------------------------------
+# ── Singleton client -----------------------------------------------------------
 
-_model: Optional[genai.GenerativeModel] = None
-_json_model: Optional[genai.GenerativeModel] = None
-
-
-def _get_model(expect_json: bool = False, max_tokens_override: Optional[int] = None) -> genai.GenerativeModel:
-    """Lazy-init the Gemini GenerativeModel."""
-    global _model, _json_model
-
-    api_key = get_google_api_key()
-    genai.configure(api_key=api_key)
-
-    max_tokens = max_tokens_override or GEMINI_MAX_OUTPUT_TOKENS
-
-    generation_config = genai.types.GenerationConfig(
-        temperature=GEMINI_TEMPERATURE,
-        max_output_tokens=max_tokens,
-        **({"response_mime_type": "application/json"} if expect_json else {}),
-    )
-
-    return genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        generation_config=generation_config,
-    )
+_client: Optional[OpenAI] = None
 
 
-# -- Core LLM call -------------------------------------------------------------
+def _get_client() -> OpenAI:
+    """Lazy-init the LM Studio OpenAI-compatible client."""
+    global _client
+    if _client is None:
+        _client = OpenAI(base_url=LM_STUDIO_BASE_URL, api_key=LM_STUDIO_API_KEY)
+    return _client
 
-@traceable(run_type="llm")
+
+# ── Core LLM call -------------------------------------------------------------
+
 def call_llm(
     prompt: str,
     system_instruction: Optional[str] = None,
@@ -64,40 +49,40 @@ def call_llm(
     max_tokens_override: Optional[int] = None,
 ) -> str:
     """
-    Make a single LLM call to the Gemini API.
+    Make a single LLM call to LM Studio (Qwen via OpenAI-compatible API).
 
     Args:
         prompt:              The user-turn prompt text.
         system_instruction:  Optional system prompt.
-        expect_json:         If True, request JSON output via response_mime_type.
-        max_retries:         Retry attempts on transient API errors.
-        model:               Unused (kept for interface compatibility).
-        max_tokens_override: If set, use this instead of GEMINI_MAX_OUTPUT_TOKENS.
+        expect_json:         If True, request JSON output via response_format.
+        max_retries:         Retry attempts on transient connection errors.
+        model:               Optional model override (defaults to LM_STUDIO_MODEL).
+        max_tokens_override: If set, use this instead of LM_MAX_OUTPUT_TOKENS.
 
     Returns:
         The model's text response (stripped).
     """
-    api_key = get_google_api_key()
-    genai.configure(api_key=api_key)
+    client = _get_client()
+    max_tokens = max_tokens_override or LM_MAX_OUTPUT_TOKENS
 
-    max_tokens = max_tokens_override or GEMINI_MAX_OUTPUT_TOKENS
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
 
-    generation_config = genai.types.GenerationConfig(
-        temperature=GEMINI_TEMPERATURE,
-        max_output_tokens=max_tokens,
-        **({"response_mime_type": "application/json"} if expect_json else {}),
-    )
-
-    llm = genai.GenerativeModel(
-        model_name=GEMINI_MODEL,
-        generation_config=generation_config,
-        **({"system_instruction": system_instruction} if system_instruction else {}),
-    )
+    kwargs = {
+        "model": model or LM_STUDIO_MODEL,
+        "messages": messages,
+        "temperature": LM_TEMPERATURE,
+        "max_tokens": max_tokens,
+    }
+    if expect_json:
+        kwargs["response_format"] = {"type": "json_object"}
 
     for attempt in range(max_retries):
         try:
-            response = llm.generate_content(prompt)
-            content = response.text
+            response = client.chat.completions.create(**kwargs)
+            content = response.choices[0].message.content
             if content and content.strip():
                 return content.strip()
             else:
@@ -119,7 +104,7 @@ def call_llm(
             raise
 
 
-# -- JSON-mode wrapper ---------------------------------------------------------
+# ── JSON-mode wrapper ---------------------------------------------------------
 
 def call_llm_json(
     prompt: str,
@@ -144,7 +129,7 @@ def call_llm_json(
     return _parse_json_response(raw)
 
 
-# -- JSON recovery pipeline ----------------------------------------------------
+# ── JSON recovery pipeline ----------------------------------------------------
 
 def _parse_json_response(raw: str) -> dict:
     """

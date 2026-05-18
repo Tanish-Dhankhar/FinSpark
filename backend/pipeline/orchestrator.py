@@ -1,6 +1,7 @@
 """
-Pipeline Orchestrator
-Coordinates all pipeline stages sequentially: 1→2→3→4→5→pause at 6→7 after approval.
+Pipeline Orchestrator — PostgreSQL-backed progress tracking
+Replaces the in-memory _pipeline_progress dict with the pipeline_runs table.
+This means progress survives server restarts and works across multiple processes.
 """
 import json
 import traceback
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 
 from backend.services.audit_service import emit_audit_event
 from backend.services.project_service import get_latest_config, save_config
+from backend.database.connection import get_db_for_client
 from backend.pipeline.stage1_ingestion import run_stage1
 from backend.pipeline.stage2_parsing import run_stage2
 from backend.pipeline.stage3_matching import run_stage3
@@ -17,38 +19,78 @@ from backend.pipeline.stage6_review import pause_for_review
 from backend.pipeline.stage7_simulation import run_stage7
 
 
-# Global dict tracking pipeline progress per client (in-memory)
-_pipeline_progress = {}
-
+# ── Progress Tracking ─────────────────────────────────────────────────────────
 
 def get_progress(client_id: str) -> dict:
-    """Get current pipeline progress for a client."""
-    return _pipeline_progress.get(client_id, {
-        "stage": "idle",
-        "status": "idle",
-        "message": "No pipeline running",
-        "progress_percent": 0,
-    })
+    """Get current pipeline progress from the database."""
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT overall_status, current_stage, progress_percent, progress_message
+                FROM pipeline_runs
+                WHERE client_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (client_id,),
+            )
+            row = cur.fetchone()
+
+    if not row:
+        return {
+            "stage":            "idle",
+            "status":           "idle",
+            "message":          "No pipeline running",
+            "progress_percent": 0,
+        }
+
+    overall_status, current_stage, progress_percent, progress_message = row
+    return {
+        "stage":            current_stage or "idle",
+        "status":           overall_status or "idle",
+        "message":          progress_message or "",
+        "progress_percent": progress_percent or 0,
+    }
 
 
 def _update_progress(client_id: str, stage: str, status: str, message: str, percent: int):
-    """Update in-memory pipeline progress."""
-    _pipeline_progress[client_id] = {
-        "stage": stage,
-        "status": status,
-        "message": message,
-        "progress_percent": percent,
-    }
+    """Persist pipeline progress to the pipeline_runs table."""
     print(f"  [{percent}%] {message}")
+    try:
+        with get_db_for_client(client_id) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE pipeline_runs
+                    SET current_stage      = %s,
+                        overall_status     = %s,
+                        progress_message   = %s,
+                        progress_percent   = %s,
+                        completed_at       = CASE WHEN %s IN ('completed', 'failed') THEN NOW() ELSE NULL END
+                    WHERE client_id = %s
+                      AND id = (
+                          SELECT id FROM pipeline_runs
+                          WHERE client_id = %s
+                          ORDER BY created_at DESC
+                          LIMIT 1
+                      )
+                    """,
+                    (stage, status, message, percent, status, client_id, client_id),
+                )
+    except Exception as e:
+        print(f"  [OrchestratorDB] WARNING: failed to update progress — {e}")
 
+
+# ── Pipeline Execution ────────────────────────────────────────────────────────
 
 def run_pipeline_stages_1_to_5(client_id: str) -> dict:
     """
     Run pipeline stages 1 through 5, then pause at stage 6 for review.
-    
+
     Args:
-        client_id: The client folder ID
-        
+        client_id: The client ID
+
     Returns:
         Status dict with review info
     """
@@ -133,10 +175,10 @@ def run_pipeline_stages_1_to_5(client_id: str) -> dict:
 def run_pipeline_stage_7(client_id: str) -> dict:
     """
     Run Stage 7 (simulation) after human approval.
-    
+
     Args:
-        client_id: The client folder ID
-        
+        client_id: The client ID
+
     Returns:
         Simulation report dict
     """
@@ -160,6 +202,24 @@ def run_pipeline_stage_7(client_id: str) -> dict:
             client_id, "completed", "completed",
             f"Pipeline complete — Confidence: {confidence}%", 100
         )
+
+        # Persist simulation report to DB
+        try:
+            with get_db_for_client(client_id) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO simulation_reports (client_id, run_id, report_data, fidelity_score)
+                        SELECT %s, run_id, %s, %s
+                        FROM pipeline_runs
+                        WHERE client_id = %s
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """,
+                        (client_id, json.dumps(report), float(confidence), client_id),
+                    )
+        except Exception as e:
+            print(f"  [OrchestratorDB] WARNING: failed to save simulation report — {e}")
 
         emit_audit_event(
             client_id=client_id,

@@ -2,7 +2,7 @@
 Vector Service — Retrieval-Augmented Adapter & Hook Matching
 ============================================================
 Implements semantic search over the adapter and hook catalogs using
-Google text-embedding-005 with MRL-512 truncation.
+nomic-embed-text (text-embedding-nomic-embed-text-v1.5) served via LM Studio.
 
 Key design decisions:
   • Embeddings derived from actual adapter/hook JSON files (not hardcoded strings)
@@ -13,12 +13,13 @@ Key design decisions:
     typical_callers, auth_description) are embedded with full context
   • Required/optional field names and descriptions are included for field-level matching
   • Incremental per-entry hashing (only re-embeds files that changed on disk)
+  • Auto-detects embedding model change and forces full rebuild if model differs
   • Catalog is scanned directly from the adapters/ and hooks/ directories —
     no master_index.json dependency for the embedding document side
   • Similarity scores surfaced to LLM prompt for explainability
   • Confidence threshold (0.45) with graceful fallback to full catalog
   • Vectorized numpy cosine similarity (matrix multiply, not a loop)
-  • MRL-512 truncation: 33% smaller cache, <1% accuracy loss
+  • nomic-embed-text: 768-dim vectors
 """
 
 import json
@@ -41,8 +42,9 @@ from backend.config import (
     VECTOR_TOP_K_HOOKS,
     VECTOR_SIMILARITY_THRESHOLD,
     VECTOR_EMBEDDING_DIM,
-    GEMINI_EMBEDDING_MODEL,
-    get_google_api_key,
+    NOMIC_EMBEDDING_MODEL,
+    LM_STUDIO_BASE_URL,
+    LM_STUDIO_API_KEY,
 )
 
 
@@ -194,41 +196,31 @@ def _extract_hook_embedding_text(hook_json: dict) -> str:
 
 # ── Embedding Client ──────────────────────────────────────────────────────────
 
-def _get_embedding(text: str, max_retries: int = 4, task_type: str = "RETRIEVAL_DOCUMENT", title: str = None) -> list[float]:
+def _get_embedding(text: str, max_retries: int = 4) -> list[float]:
     """
-    Call Gemini embedding model with MRL truncation and task_type configuration.
-    Returns a float list of configured dimensionality.
+    Call nomic-embed-text via LM Studio's OpenAI-compatible embeddings API.
+    Returns a float list of VECTOR_EMBEDDING_DIM (768) dimensions.
     """
-    from google import genai
-    from google.genai import types as gtypes
+    from openai import OpenAI
 
-    api_key = get_google_api_key()
-    client = genai.Client(api_key=api_key)
+    client = OpenAI(base_url=LM_STUDIO_BASE_URL, api_key=LM_STUDIO_API_KEY)
 
     for attempt in range(max_retries):
         try:
-            config_kwargs = {
-                "output_dimensionality": VECTOR_EMBEDDING_DIM,
-                "task_type": task_type,
-            }
-            if title:
-                config_kwargs["title"] = title
-
-            result = client.models.embed_content(
-                model=GEMINI_EMBEDDING_MODEL,
-                contents=text,
-                config=gtypes.EmbedContentConfig(**config_kwargs),
+            result = client.embeddings.create(
+                model=NOMIC_EMBEDDING_MODEL,
+                input=text,
             )
-            return result.embeddings[0].values
+            return result.data[0].embedding
         except Exception as e:
             error_str = str(e).lower()
             is_retryable = any(kw in error_str for kw in [
-                "429", "rate", "resource_exhausted", "quota",
-                "503", "overloaded", "unavailable", "deadline",
+                "429", "rate", "quota",
+                "503", "overloaded", "unavailable", "deadline", "connection",
             ])
             if is_retryable and attempt < max_retries - 1:
                 wait_time = min(2 ** attempt * 3, 60)
-                print(f"  ⏳ Embedding API rate limited (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...")
+                print(f"  ⏳ Embedding API error (attempt {attempt + 1}/{max_retries}). Waiting {wait_time}s...")
                 time.sleep(wait_time)
                 continue
             raise
@@ -266,12 +258,13 @@ def build_adapter_embeddings(force: bool = False) -> dict:
 
     Scans ADAPTERS_CATALOG_DIR for *.json files directly (excluding master_index.json).
     For each adapter JSON:
-      1. Checks the MD5 hash — skips if unchanged and embedding exists in cache
-      2. Loads the full adapter JSON
-      3. Extracts a clean semantic embedding text via _extract_adapter_embedding_text()
+      1. Checks if embedding model changed — forces full rebuild if so
+      2. Checks the MD5 hash — skips if unchanged and embedding exists in cache
+      3. Loads the full adapter JSON
+      4. Extracts a clean semantic embedding text via _extract_adapter_embedding_text()
          (strips endpoints, error_codes, timeout_ms, etc.)
-      4. Calls Gemini text-embedding-005 to generate a 512-dim vector
-      5. Stores the embedding, hash, and key metadata in the cache file
+      5. Calls nomic-embed-text via LM Studio to generate a 768-dim vector
+      6. Stores the embedding, hash, and key metadata in the cache file
 
     Returns the updated in-memory cache dict.
     """
@@ -280,6 +273,12 @@ def build_adapter_embeddings(force: bool = False) -> dict:
     cache = _load_cache(ADAPTER_EMBEDDINGS_CACHE)
     rebuilt = []
     skipped = []
+
+    # Auto-detect model change — force full rebuild if embedding model differs
+    cached_model = cache.get("_meta", {}).get("model", "")
+    if cached_model and cached_model != NOMIC_EMBEDDING_MODEL:
+        print(f"  🔄 Embedding model changed ({cached_model} → {NOMIC_EMBEDDING_MODEL}). Rebuilding all adapter entries...")
+        force = True
 
     # Scan the adapters directory directly — no master_index dependency
     adapter_files = [
@@ -341,7 +340,7 @@ def build_adapter_embeddings(force: bool = False) -> dict:
     # Update meta
     cache["_meta"] = {
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "model": GEMINI_EMBEDDING_MODEL,
+        "model": NOMIC_EMBEDDING_MODEL,
         "dim": VECTOR_EMBEDDING_DIM,
         "source": "adapter_json_files",
     }
@@ -364,9 +363,10 @@ def build_hook_embeddings(force: bool = False) -> dict:
 
     Scans HOOKS_CATALOG_DIR for *.json files directly (excluding master_index.json).
     For each hook JSON:
-      1. Checks MD5 hash — skips if unchanged and embedding exists in cache
-      2. Extracts clean semantic text via _extract_hook_embedding_text()
-      3. Embeds using Gemini text-embedding-005
+      1. Checks if embedding model changed — forces full rebuild if so
+      2. Checks MD5 hash — skips if unchanged and embedding exists in cache
+      3. Extracts clean semantic text via _extract_hook_embedding_text()
+      4. Embeds using nomic-embed-text via LM Studio
 
     Returns summary of rebuilt/skipped entries.
     """
@@ -375,6 +375,12 @@ def build_hook_embeddings(force: bool = False) -> dict:
     cache = _load_cache(HOOK_EMBEDDINGS_CACHE)
     rebuilt = []
     skipped = []
+
+    # Auto-detect model change — force full rebuild if embedding model differs
+    cached_model = cache.get("_meta", {}).get("model", "")
+    if cached_model and cached_model != NOMIC_EMBEDDING_MODEL:
+        print(f"  🔄 Embedding model changed ({cached_model} → {NOMIC_EMBEDDING_MODEL}). Rebuilding all hook entries...")
+        force = True
 
     # Scan the hooks directory directly — no master_index dependency
     hook_files = [
@@ -427,7 +433,7 @@ def build_hook_embeddings(force: bool = False) -> dict:
 
     cache["_meta"] = {
         "built_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "model": GEMINI_EMBEDDING_MODEL,
+        "model": NOMIC_EMBEDDING_MODEL,
         "dim": VECTOR_EMBEDDING_DIM,
         "source": "hook_json_files",
     }
@@ -520,7 +526,7 @@ def search_adapters(
 
     # Embed the query
     try:
-        query_vec = np.array(_get_embedding(query, task_type="RETRIEVAL_QUERY"), dtype=np.float32)
+        query_vec = np.array(_get_embedding(query), dtype=np.float32)
     except Exception as e:
         print(f"  ⚠️  Failed to embed query for adapter search: {e}")
         return []
@@ -593,7 +599,7 @@ def search_hooks(
         return []
 
     try:
-        query_vec = np.array(_get_embedding(query, task_type="RETRIEVAL_QUERY"), dtype=np.float32)
+        query_vec = np.array(_get_embedding(query), dtype=np.float32)
     except Exception as e:
         print(f"  ⚠️  Failed to embed query for hook search: {e}")
         return []

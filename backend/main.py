@@ -41,14 +41,29 @@ from backend.pipeline.orchestrator import (
 from backend.pipeline.stage6_review import (
     approve_config, request_changes,
 )
+from backend.database.connection import init_db, get_db_for_client, get_admin_db
+from backend.security import (
+    validate_client_id, validate_filename, require_project, safe_client_path
+)
+from fastapi import Depends as _Depends
 
 
 # ── App Setup ───────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app_):
-    """Startup: warm the vector embeddings cache. Shutdown: nothing special."""
-    print("[FinSpark] 🔥 Startup — warming vector embeddings cache...")
+    """Startup: initialise DB tables, warm the vector embeddings cache."""
+    # Initialise PostgreSQL tables (idempotent — uses CREATE TABLE IF NOT EXISTS)
+    print("[FinSpark] 🗄️  Initialising PostgreSQL tables...")
+    try:
+        await asyncio.get_event_loop().run_in_executor(None, init_db)
+        print("[FinSpark] ✅ Database ready.")
+    except Exception as exc:
+        print(f"[FinSpark] ❌ DB init failed: {exc}")
+        raise  # Fatal — cannot run without DB
+
+    # Warm vector embeddings cache
+    print("[FinSpark] 🔥 Warming vector embeddings cache...")
     try:
         await asyncio.get_event_loop().run_in_executor(
             None, build_embeddings_cache
@@ -99,7 +114,10 @@ async def list_all_projects():
 
 
 @app.get("/api/projects/{client_id}", tags=["Projects"])
-async def get_project(client_id: str):
+async def get_project(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
     """Get detailed info for a specific project."""
     detail = get_project_detail(client_id)
     if not detail:
@@ -107,14 +125,65 @@ async def get_project(client_id: str):
     return detail
 
 
+@app.delete("/api/projects/{client_id}", tags=["Projects"])
+async def delete_project(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
+    """
+    Permanently delete a project.
+    - Removes the client filesystem directory.
+    - Deletes the `projects` row via the admin (superuser) connection;
+      all child tables cascade automatically (ON DELETE CASCADE).
+    """
+    # 1. Wipe filesystem directory (non-fatal if it doesn't exist)
+    client_dir = safe_client_path(CLIENTS_DIR, client_id)
+    if client_dir.exists():
+        try:
+            shutil.rmtree(client_dir)
+        except Exception as e:
+            print(f"[DeleteProject] Filesystem removal warning for {client_id}: {e}")
+
+    # 2. Delete the project row using the SUPERUSER (admin) pool so that RLS
+    #    doesn't block the DELETE.  All child tables have ON DELETE CASCADE so
+    #    a single DELETE from projects removes everything.
+    try:
+        with get_admin_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM projects WHERE client_id = %s", (client_id,))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database deletion failed: {str(e)}")
+
+    return {"message": f"Project '{client_id}' deleted successfully.", "client_id": client_id}
+
+
 @app.get("/api/projects/{client_id}/configs", tags=["Projects"])
-async def list_config_versions(client_id: str):
-    """List all config version files for a project."""
-    config_dir = CLIENTS_DIR / client_id / "configs"
-    if not config_dir.exists():
+async def list_config_versions(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
+    """List all config versions for a project from the database."""
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT version_label, version_number, status, created_at FROM config_versions "
+                "WHERE client_id = %s ORDER BY version_number",
+                (client_id,),
+            )
+            rows = cur.fetchall()
+    if rows is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    files = sorted(config_dir.glob("config_v*.json"))
-    return [{"filename": f.name, "size_bytes": f.stat().st_size} for f in files]
+    return [
+        {
+            "filename": f"config_{row[0]}.json",
+            "version_label": row[0],
+            "version_number": row[1],
+            "status": row[2],
+            "created_at": row[3].isoformat() if row[3] else "",
+            "size_bytes": 0,
+        }
+        for row in rows
+    ]
 
 
 @app.get("/api/projects/{client_id}/configs/latest", tags=["Projects"])
@@ -127,17 +196,35 @@ async def get_latest_config_endpoint(client_id: str):
 
 
 @app.get("/api/projects/{client_id}/configs/diff", tags=["Projects"])
-async def diff_configs(client_id: str, v1: str, v2: str):
+async def diff_configs(
+    client_id: str = _Depends(validate_client_id),
+    v1: str = "",
+    v2: str = "",
+    project: dict = _Depends(require_project),
+):
     """Compare two config versions and return structured diff."""
-    path1 = CLIENTS_DIR / client_id / "configs" / v1
-    path2 = CLIENTS_DIR / client_id / "configs" / v2
-    if not path1.exists():
+    def _fetch_config_by_label(label: str):
+        """Resolve 'config_v1.json' or 'v1' to config dict from DB."""
+        ver = label.replace("config_", "").replace(".json", "")
+        with get_db_for_client(client_id) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT config_data FROM config_versions "
+                    "WHERE client_id = %s AND version_label = %s",
+                    (client_id, ver),
+                )
+                row = cur.fetchone()
+        return row
+
+    row1 = _fetch_config_by_label(v1)
+    if not row1:
         raise HTTPException(status_code=404, detail=f"{v1} not found")
-    if not path2.exists():
+    row2 = _fetch_config_by_label(v2)
+    if not row2:
         raise HTTPException(status_code=404, detail=f"{v2} not found")
 
-    cfg1 = json.loads(path1.read_text(encoding="utf-8"))
-    cfg2 = json.loads(path2.read_text(encoding="utf-8"))
+    cfg1 = row1[0] if isinstance(row1[0], dict) else json.loads(row1[0])
+    cfg2 = row2[0] if isinstance(row2[0], dict) else json.loads(row2[0])
 
     def _flatten(obj, prefix=""):
         items = {}
@@ -171,105 +258,111 @@ async def diff_configs(client_id: str, v1: str, v2: str):
 
 
 @app.get("/api/projects/{client_id}/configs/{filename}", tags=["Projects"])
-async def get_config_file(client_id: str, filename: str):
-    """Get a specific config file content."""
-    path = CLIENTS_DIR / client_id / "configs" / filename
-    return _read_json(path)
+async def get_config_file(
+    client_id: str = _Depends(validate_client_id),
+    filename: str = _Depends(validate_filename),
+    project: dict = _Depends(require_project),
+):
+    """Get a specific config version from the database."""
+    ver = filename.replace("config_", "").replace(".json", "")
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT config_data FROM config_versions "
+                "WHERE client_id = %s AND version_label = %s",
+                (client_id, ver),
+            )
+            row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Config version '{filename}' not found")
+    data = row[0] if isinstance(row[0], dict) else json.loads(row[0])
+    return data
 
 
 @app.put("/api/projects/{client_id}/configs/{filename}", tags=["Projects"])
-async def save_config_file(client_id: str, filename: str, request: dict):
-    """Save/update a config file."""
-    path = CLIENTS_DIR / client_id / "configs" / filename
-    if not path.parent.exists():
-        raise HTTPException(status_code=404, detail="Project not found")
-    # Read old content for audit
-    old_content = path.read_text(encoding="utf-8") if path.exists() else ""
+async def save_config_file(
+    client_id: str = _Depends(validate_client_id),
+    filename: str = _Depends(validate_filename),
+    request: dict = None,
+    project: dict = _Depends(require_project),
+):
+    """Save/update a config version in the database."""
+    ver = filename.replace("config_", "").replace(".json", "")
+    old_config = get_latest_config(client_id)
+    old_content = json.dumps(old_config, indent=2) if old_config else ""
     new_content = json.dumps(request, indent=2, ensure_ascii=False)
     try:
-        path.write_text(new_content, encoding="utf-8")
+        ver_num = int(ver.lstrip("v")) if ver.lstrip("v").isdigit() else get_current_version_number(client_id)
+        save_config(client_id, request, version=ver_num)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
-    # Emit audit event
     emit_audit_event(
         client_id=client_id,
         stage="config_edit",
-        action=f"Config file '{filename}' edited manually via dashboard",
+        action=f"Config '{filename}' edited manually via dashboard",
         agent="user",
         responsible="user",
-        input_data=old_content,
-        output_data=new_content,
-        details=f"File: {filename}",
+        input_data=old_content[:500],
+        output_data=new_content[:500],
+        details=f"Version: {ver}",
     )
     return {"message": f"Config {filename} saved successfully", "filename": filename}
 
 @app.get("/api/projects/{client_id}/configs/{filename}/download", tags=["Projects"])
-async def download_config_file(client_id: str, filename: str):
-    """Download a specific config file."""
-    path = CLIENTS_DIR / client_id / "configs" / filename
-    if not path.exists():
+async def download_config_file(
+    client_id: str = _Depends(validate_client_id),
+    filename: str = _Depends(validate_filename),
+    project: dict = _Depends(require_project),
+):
+    """Download a specific config version from the database."""
+    ver = filename.replace("config_", "").replace(".json", "")
+    with get_db_for_client(client_id) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT config_data FROM config_versions "
+                "WHERE client_id = %s AND version_label = %s",
+                (client_id, ver),
+            )
+            row = cur.fetchone()
+    if not row:
         raise HTTPException(status_code=404, detail="Config file not found")
-    return FileResponse(path, filename=filename, media_type="application/json")
+    data = row[0] if isinstance(row[0], dict) else json.loads(row[0])
+    config_dir = safe_client_path(CLIENTS_DIR, client_id, "configs")
+    config_dir.mkdir(parents=True, exist_ok=True)
+    dl_name = f"config_{ver}.json"
+    tmp_path = config_dir / dl_name
+    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return FileResponse(tmp_path, filename=dl_name, media_type="application/json")
 
 
-# ── Credentials (.env) ──────────────────────────────────────────────────────
+# ── Credentials ──────────────────────────────────────────────────────────────
 
 @app.get("/api/projects/{client_id}/credentials", tags=["Projects"])
-async def get_credentials(client_id: str):
-    """Read the client's .env file and return credentials as key-value pairs."""
-    env_path = CLIENTS_DIR / client_id / ".env"
-    if not env_path.exists():
-        return {"credentials": []}
-    credentials = []
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, _, val = line.partition("=")
-            credentials.append({"key": key.strip(), "value": val.strip()})
+async def get_credentials(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
+    """Read credentials for a client from the database."""
+    from backend.services.credential_service import read_client_env
+    env_vars = read_client_env(client_id)
+    credentials = [{"key": k, "value": v} for k, v in sorted(env_vars.items())]
     return {"credentials": credentials}
 
 
 @app.put("/api/projects/{client_id}/credentials", tags=["Projects"])
-async def save_credentials(client_id: str, request: dict):
-    """Save credentials to the client's .env file."""
-    env_path = CLIENTS_DIR / client_id / ".env"
-    if not env_path.parent.exists():
-        raise HTTPException(status_code=404, detail="Project not found")
+async def save_credentials(
+    client_id: str = _Depends(validate_client_id),
+    request: dict = None,
+    project: dict = _Depends(require_project),
+):
+    """Save credentials for a client to the database."""
+    from backend.services.credential_service import write_credential
     creds = request.get("credentials", [])
-    # Read existing .env to preserve comments/structure
-    header_lines = []
-    if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#") or stripped == "":
-                header_lines.append(line)
-            else:
-                break  # stop at first non-comment line
-    # Build new .env
-    lines = header_lines if header_lines else [
-        f"# FinSpark Credential Vault — {client_id}",
-        "# Fill in your API keys and secrets below.",
-        "",
-    ]
-    # Group by prefix
-    grouped: dict = {}
     for c in creds:
         key = c.get("key", "").strip()
         val = c.get("value", "").strip()
-        if not key:
-            continue
-        parts = key.split("_")
-        prefix = parts[0] if len(parts) > 1 else "GENERAL"
-        grouped.setdefault(prefix, []).append((key, val))
-    if not any(line.strip() == "" for line in lines[-1:]):
-        lines.append("")
-    for prefix in sorted(grouped.keys()):
-        lines.append(f"# — {prefix}")
-        for key, val in sorted(grouped[prefix]):
-            lines.append(f"{key}={val}")
-        lines.append("")
-    env_path.write_text("\n".join(lines), encoding="utf-8")
-    # Audit
+        if key:
+            write_credential(client_id, key, val)
     emit_audit_event(
         client_id=client_id,
         stage="credentials",
@@ -281,33 +374,54 @@ async def save_credentials(client_id: str, request: dict):
     return {"message": f"{len(creds)} credentials saved", "count": len(creds)}
 
 
+
 # ── Document Upload ─────────────────────────────────────────────────────────
 
 @app.post("/api/projects/{client_id}/upload", tags=["Documents"])
-async def upload_documents(client_id: str, files: List[UploadFile] = File(...)):
+async def upload_documents(
+    client_id: str = _Depends(validate_client_id),
+    files: List[UploadFile] = File(...),
+    project: dict = _Depends(require_project),
+):
     """Upload documents (BRD, SOW, API specs) to a project."""
-    docs_dir = CLIENTS_DIR / client_id / "input_documents"
+    docs_dir = safe_client_path(CLIENTS_DIR, client_id, "input_documents")
     if not docs_dir.exists():
-        # On Vercel, the /tmp dir might have been wiped between requests. Recreate it.
-        from backend.services.project_service import create_project
+        # Recreate folder structure if wiped (e.g., Railway ephemeral FS)
         create_project(client_name=f"Recreated_{client_id}", client_id=client_id)
-        
+        docs_dir = safe_client_path(CLIENTS_DIR, client_id, "input_documents")
     if not docs_dir.exists():
         raise HTTPException(status_code=404, detail=f"Project {client_id} not found")
 
     uploaded = []
     for file in files:
-        dest = docs_dir / file.filename
+        # Validate uploaded filename before writing to disk
+        safe_name = validate_filename(file.filename)
+        dest = safe_client_path(CLIENTS_DIR, client_id, "input_documents", safe_name)
         with open(dest, "wb") as f:
             content = await file.read()
             f.write(content)
+        try:
+            with get_db_for_client(client_id) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO documents (client_id, filename, file_path, size_bytes)
+                        VALUES (%s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        (client_id, safe_name, str(dest), len(content)),
+                    )
+        except Exception as e:
+            print(f"  [UploadDB] WARNING: could not record document metadata — {e}")
+
         uploaded.append({
-            "filename": file.filename,
+            "filename": safe_name,
             "size_bytes": len(content),
             "path": str(dest),
         })
 
     return {"uploaded": uploaded, "count": len(uploaded)}
+
 
 
 @app.post("/api/projects/{client_id}/rerun-pipeline", tags=["Pipeline"])
@@ -412,9 +526,13 @@ async def rerun_pipeline(
 # ── Document Downloads ──────────────────────────────────────────────────────
 
 @app.get("/api/projects/{client_id}/documents/{filename}/download", tags=["Documents"])
-async def download_document(client_id: str, filename: str):
+async def download_document(
+    client_id: str = _Depends(validate_client_id),
+    filename: str = _Depends(validate_filename),
+    project: dict = _Depends(require_project),
+):
     """Download an input document."""
-    path = CLIENTS_DIR / client_id / "input_documents" / filename
+    path = safe_client_path(CLIENTS_DIR, client_id, "input_documents", filename)
     if not path.exists():
         raise HTTPException(status_code=404, detail="Document not found")
     return FileResponse(path, filename=filename)
@@ -838,6 +956,9 @@ def _run_pipeline_sync(client_id: str):
 @app.post("/api/projects/{client_id}/run-pipeline", tags=["Pipeline"])
 async def trigger_pipeline(client_id: str, background_tasks: BackgroundTasks):
     """Trigger the pipeline (stages 1-5, pauses at 6 for review)."""
+    import uuid as _uuid
+    from backend.database.connection import get_db as _get_db
+
     docs_dir = CLIENTS_DIR / client_id / "input_documents"
     if not docs_dir.exists():
         raise HTTPException(status_code=404, detail=f"Project {client_id} not found")
@@ -845,18 +966,41 @@ async def trigger_pipeline(client_id: str, background_tasks: BackgroundTasks):
     if not any(docs_dir.iterdir()):
         raise HTTPException(status_code=400, detail="No documents uploaded. Upload documents first.")
 
+    # Insert a fresh pipeline_run row so progress polling works immediately
+    run_id = f"run_{_uuid.uuid4().hex[:8]}"
+    now = datetime.now(timezone.utc)
+    try:
+        with _get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO pipeline_runs
+                        (client_id, run_id, triggered_by, triggered_at, overall_status,
+                         current_stage, progress_percent, progress_message)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (client_id, run_id, "user", now, "running",
+                     "stage_1", 0, "Pipeline queued..."),
+                )
+    except Exception as e:
+        print(f"  [RunPipeline] WARNING: could not insert pipeline_run row — {e}")
+
     # Run pipeline in background
     background_tasks.add_task(_run_pipeline_sync, client_id)
 
     return {
         "status": "pipeline_started",
         "client_id": client_id,
-        "message": "Pipeline is running in the background. Poll /api/projects/{client_id}/status for progress.",
+        "run_id": run_id,
+        "message": f"Pipeline is running in the background. Poll /api/projects/{client_id}/status for progress.",
     }
 
 
 @app.get("/api/projects/{client_id}/status", tags=["Pipeline"])
-async def get_pipeline_status(client_id: str):
+async def get_pipeline_status(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
     """Get current pipeline progress for a client."""
     progress = get_progress(client_id)
     return {
@@ -933,7 +1077,10 @@ async def get_simulation_report(client_id: str, filename: str):
 # ── Audit Log ───────────────────────────────────────────────────────────────
 
 @app.get("/api/projects/{client_id}/audit", tags=["Audit"])
-async def get_project_audit_log(client_id: str):
+async def get_project_audit_log(
+    client_id: str = _Depends(validate_client_id),
+    project: dict = _Depends(require_project),
+):
     """Get the full audit log for a project."""
     return get_audit_log(client_id)
 

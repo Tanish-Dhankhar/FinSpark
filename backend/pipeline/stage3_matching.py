@@ -109,6 +109,13 @@ Core rules:
   check whether the adapter format spec differs from the BRD and add the rule if so.
 - DO NOT select a deprecated version. If the version marked for selection is deprecated, use the
   latest stable version from the versions list and explain in _version_reason.
+- CREDENTIAL FIELDS: For any adapter required_field whose field_name matches a name in the
+  adapter's credential_env_vars, or is obviously a secret/credential (e.g. account_sid, api_key,
+  auth_token, client_secret, access_token), ALWAYS use:
+    mapping_type = "computed"
+    user_field   = "N/A"
+    description  = "Resolved from vault env var at runtime. Never user-provided."
+  These must NEVER be mapped as user-supplied fields regardless of what the BRD says.
 - Include _mapping_reason and _adapter_reason/_version_reason annotations."""
 
 INTEGRATION_FILL_PROMPT = """Fill the integration config for this ONE service.
@@ -121,6 +128,13 @@ CHOSEN ADAPTER (full catalog entry):
 
 CHOSEN VERSION: {chosen_version}
 MATCH REASON: {match_reason}
+
+GLOBAL BRD FIELDS (every data field collected anywhere in the BRD — available at runtime):
+{global_brd_fields}
+
+IMPORTANT: Before marking any adapter required field as mapping_type="missing", check GLOBAL BRD
+FIELDS above. If the concept is covered by a global field, use it with mapping_type="rename".
+Only mark "missing" when the field is absent from BOTH the service-specific inputs AND global fields.
 
 Return a SINGLE JSON object with EXACTLY this structure:
 {{
@@ -135,7 +149,7 @@ Return a SINGLE JSON object with EXACTLY this structure:
   "auth_type": "copy auth_type from adapter JSON exactly",
   "credential_env_vars": ["$EACH_VAR from adapter credential_env_vars, prefixed with $"],
   "timeout_ms": "copy timeout_ms from adapter JSON (integer)",
-  "retry_policy": {{"max_retries": 0, "backoff_strategy": "fixed"}},
+  "retry_policy": "<copy exact retry_policy object from the adapter JSON — never use default values>",
   "sandbox_url": "copy sandbox_base_url from adapter JSON",
   "fallback_adapter": "copy fallback_adapter from adapter JSON or null",
   "deprecated": false,
@@ -165,12 +179,18 @@ Return a SINGLE JSON object with EXACTLY this structure:
 
 FIELD MAPPING RULES (apply in order):
 1. For EVERY field in adapter required_fields:
-   a. Find the BRD input field with the same or semantically equivalent meaning.
-   b. If found: mapping_type="direct" (same name) or "rename" (different name).
-   c. If no BRD field covers it: mapping_type="missing", user_field="N/A".
+   a. Find the BRD input field (from SERVICE INFO above) with the same or semantically equivalent meaning.
+   b. If found in service-specific fields: mapping_type="direct" (same name) or "rename" (different name).
+   c. If NOT in service fields: check GLOBAL BRD FIELDS above for a matching concept.
+      If found in global fields: mapping_type="rename", user_field=<global field name>,
+      add note "sourced from global BRD applicant data" in description.
+   d. Only if NOT found in service-specific fields OR global BRD fields:
+      mapping_type="missing", user_field="N/A".
       Add a _mapping_reason explaining which upstream service should provide this field at runtime.
-2. For adapter optional_fields: include mappings if BRD mentions those fields.
+2. For adapter optional_fields: include mappings if BRD or global fields mention those fields.
 3. For PII fields (PAN, Aadhaar, phone, DOB, bank account): add an encrypt entry in transformation_rules.
+4. For credential fields (any field matching credential_env_vars or obviously a secret): always
+   mapping_type="computed", user_field="N/A", note vault env var resolution in description.
 
 Return ONLY the JSON object (no markdown, no explanation outside the JSON)."""
 
@@ -379,6 +399,22 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
     print(f"{'='*60}")
 
     services_detected = requirements.get("services_detected", [])
+
+    # [FIX C1] Only process primary-role services in Stage 3.
+    # mentioned_only/fallback services are filtered out here — they must not get
+    # adapter stubs or field mappings. Stage 2 already filtered config stubs;
+    # this guard ensures the per-service processing loop also skips them.
+    services_to_process = [
+        s for s in services_detected
+        if (s.get("role") or "primary").strip().lower() == "primary"
+    ]
+    skipped = [s.get("service_name") for s in services_detected if s not in services_to_process]
+    if skipped:
+        print(f"     ⚡ Stage 3 pre-filter: skipping {len(skipped)} non-primary service(s): {skipped}")
+
+    # Extract global BRD fields once — passed to each fill prompt (FIX H1/H2/M7)
+    global_brd_fields = requirements.get("general_requirements", {}).get("data_fields_global", [])
+
     using_vector = vector_is_available()
 
     # Build adapter path lookup by scanning the directory directly.
@@ -396,7 +432,7 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
     low_confidence_services: list = []
 
     # ── Per-service loop: 3a → 3b → 3c → 3d ─────────────────────────────
-    for service in services_detected:
+    for service in services_to_process:
         svc_name = service.get("service_name", "unknown")
         print(f"\n  {'─'*55}")
         print(f"  🔧 Processing service: {svc_name}")
@@ -509,6 +545,7 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
                 match_reason=match_reason,
                 adapter_id=chosen_adapter_id,
                 integration_id=actual_integration_id,
+                global_brd_fields=json.dumps(global_brd_fields, indent=2),
             )
             filled_integration = call_llm_json(
                 prompt=fill_prompt,
@@ -518,6 +555,10 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
             # If LLM returned a list, take first item
             if isinstance(filled_integration, list):
                 filled_integration = filled_integration[0] if filled_integration else {}
+
+            # [FIX H4] Force-clear hooks — they must only be populated in Step 3g,
+            # never by the config-fill LLM which doesn't know the hook catalog schema.
+            filled_integration["hooks"] = []
         else:
             # No adapter JSON — build a minimal integration entry
             filled_integration = {
@@ -543,9 +584,14 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         for integ in current_config.get("integrations", []):
             if integ.get("service_name") == svc_name or integ.get("integration_id") == service.get("integration_id"):
                 integ.update(filled_integration)
-                # Always enforce adapter_id from step 3b (LLM can't override)
+                # [FIX C3] Always enforce integration_id from config skeleton — LLM cannot override
+                integ["integration_id"] = actual_integration_id
+                # Always enforce adapter_id and version from step 3b (LLM can't override)
                 integ["adapter_id"] = chosen_adapter_id
                 integ["selected_version"] = chosen_version
+                # [FIX H3] Override retry_policy deterministically from adapter catalog JSON
+                if adapter_json and "retry_policy" in adapter_json:
+                    integ["retry_policy"] = adapter_json["retry_policy"]
                 break
         else:
             # Service not found in current config (shouldn't happen) — append
@@ -567,11 +613,11 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
     emit_audit_event(
         client_id=client_id,
         stage="stage_3_matching",
-        action=f"Adapter matching complete: {len(services_detected)} services processed"
+        action=f"Adapter matching complete: {len(services_to_process)} services processed"
                f" (vector={'yes' if using_vector else 'fallback'},"
                f" low_confidence={len(low_confidence_services)})",
-        agent="gemini_flash_lite",
-        input_data=json.dumps({"services": [s.get("service_name") for s in services_detected]}),
+        agent="qwen_local",
+        input_data=json.dumps({"services": [s.get("service_name") for s in services_to_process]}),
         output_data=json.dumps({"low_confidence": low_confidence_services}),
     )
 
@@ -651,16 +697,36 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
             system_instruction=HOOK_PICK_SYSTEM,
         )
         assigned_hook_ids = hook_pick_result.get("assigned_hooks", [])
-        print(f"        ✅ Assigned: {', '.join(assigned_hook_ids)}")
+
+        # [FIX M5/H7/H8] Deterministic mandatory hook enforcement.
+        # The LLM's output is advisory only — mandatory hooks are ALWAYS injected
+        # regardless of whether the LLM included them or whether they appeared in candidates.
+        ALWAYS_MANDATORY = ["credential_resolve_hook", "pre_auth_hook", "retry_hook"]
+        for mh in ALWAYS_MANDATORY:
+            if mh not in assigned_hook_ids:
+                assigned_hook_ids.insert(0, mh)
+                print(f"        ⚡ Injected mandatory hook: {mh}")
+        if integration.get("is_mandatory") and "on_failure_alert_hook" not in assigned_hook_ids:
+            assigned_hook_ids.append("on_failure_alert_hook")
+            print(f"        ⚡ Injected mandatory hook: on_failure_alert_hook (mandatory integration)")
+        # Deduplicate while preserving insertion order
+        _seen: set = set()
+        assigned_hook_ids = [h for h in assigned_hook_ids if not (_seen.__contains__(h) or _seen.add(h))]
+
+        print(f"        ✅ Final hooks: {', '.join(assigned_hook_ids)}")
         all_hook_ids_assigned.update(assigned_hook_ids)
 
-        # -- 3g: Populate one hook at a time (Fix 5C) -----------------------
-        print(f"     3g: Populating hook objects one-by-one...")
+        # -- 3g: Populate hook objects DETERMINISTICALLY from catalog (no LLM) --
+        # Each hook's fields come directly from its JSON file — the LLM adds zero
+        # value here since it would just copy the catalog values verbatim.
+        # Removing per-hook LLM calls eliminates 20–35 redundant API round-trips
+        # that were the primary cause of Stage 3 hanging.
+        print(f"     3g: Populating hook objects from catalog (deterministic, no LLM)...")
         populated_hooks = []
 
         for hid in assigned_hook_ids:
             if hid not in hook_id_to_path:
-                print(f"        Hook '{hid}' not in catalog -- building minimal stub")
+                print(f"        Hook '{hid}' not in catalog — building minimal stub")
                 populated_hooks.append({
                     "hook_id": hid,
                     "hook_name": hid.replace("_", " ").title(),
@@ -680,49 +746,32 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
                 print(f"        Hook file not found: {hook_file}")
                 continue
 
-            # Slim the catalog entry: strip noisy fields to reduce token budget
             full_catalog = json.loads(hook_file.read_text(encoding="utf-8"))
-            slim_catalog = {k: full_catalog[k] for k in [
-                "hook_id", "hook_name", "hook_type", "description", "when_to_use",
-                "trigger_condition", "applicable_adapters", "execution_order",
-                "is_blocking", "payload_template", "input_parameters", "output",
-                "timeout_ms", "retry_policy", "credential_env_vars",
-            ] if k in full_catalog}
 
-            single_hook_prompt = HOOK_FILL_PROMPT.format(
-                integration_info=json.dumps(_slim_integration_info(integration), indent=2),
-                hook_ids=json.dumps([hid]),
-                hook_details=json.dumps({hid: slim_catalog}, indent=2),
-            )
-            result = call_llm_json(
-                prompt=single_hook_prompt,
-                system_instruction=HOOK_FILL_SYSTEM,
-            )
-
-            # Accept array or single-object response
-            if isinstance(result, list) and result:
-                populated_hooks.append(result[0])
-            elif isinstance(result, dict) and result.get("hook_id"):
-                populated_hooks.append(result)
-            else:
-                # Deterministic fallback from slim catalog
-                populated_hooks.append({
-                    "hook_id": hid,
-                    "hook_name": slim_catalog.get("hook_name", hid),
-                    "hook_type": slim_catalog.get("hook_type", ""),
-                    "lifecycle_state": "registered",
-                    "execution_order": slim_catalog.get("execution_order", 99),
-                    "is_blocking": slim_catalog.get("is_blocking", False),
-                    "trigger_condition": slim_catalog.get("trigger_condition", ""),
-                    "timeout_ms": slim_catalog.get("timeout_ms", 5000),
-                    "retry_policy": slim_catalog.get("retry_policy", {}),
-                    "credential_env_vars": [
-                        f"${v}" if not str(v).startswith("$") else v
-                        for v in slim_catalog.get("credential_env_vars", [])
-                    ],
-                    "audit_on_trigger": True,
-                })
-            print(f"        Hook populated: {hid}")
+            # Build hook object directly from catalog fields — no LLM call
+            populated_hooks.append({
+                "hook_id":             full_catalog.get("hook_id", hid),
+                "hook_name":           full_catalog.get("hook_name", hid.replace("_", " ").title()),
+                "hook_type":           full_catalog.get("hook_type", "pre_call"),
+                "description":         full_catalog.get("description", ""),
+                "when_to_use":         full_catalog.get("when_to_use", ""),
+                "trigger_condition":   full_catalog.get("trigger_condition", ""),
+                "applicable_adapters": full_catalog.get("applicable_adapters", ["*"]),
+                "lifecycle_state":     "registered",
+                "execution_order":     full_catalog.get("execution_order", 99),
+                "is_blocking":         full_catalog.get("is_blocking", False),
+                "payload_template":    full_catalog.get("payload_template", {}),
+                "input_parameters":    full_catalog.get("input_parameters", []),
+                "output":              full_catalog.get("output", {}),
+                "timeout_ms":          full_catalog.get("timeout_ms", 5000),
+                "retry_policy":        full_catalog.get("retry_policy", {}),
+                "credential_env_vars": [
+                    f"${v}" if not str(v).startswith("$") else v
+                    for v in full_catalog.get("credential_env_vars", [])
+                ],
+                "audit_on_trigger": True,
+            })
+            print(f"        ✅ Hook populated: {hid}")
 
         integration["hooks"] = populated_hooks
 
@@ -742,7 +791,7 @@ def run_stage3(client_id: str, requirements: dict) -> dict:
         stage="stage_3_matching",
         action=f"Hook assignment complete: {len(all_hook_ids_assigned)} unique hooks"
                f" across {len(current_config.get('integrations', []))} integrations",
-        agent="gemini_flash_lite",
+        agent="qwen_local",
     )
 
     final_config = get_latest_config(client_id)

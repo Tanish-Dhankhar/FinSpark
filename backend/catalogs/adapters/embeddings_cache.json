@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "built_at": "2026-05-12T20:49:56Z",
-    "model": "models/gemini-embedding-2",
-    "dim": 512,
+    "built_at": "2026-05-18T17:18:59Z",
+    "model": "text-embedding-nomic-embed-text-v1.5",
+    "dim": 768,
     "source": "adapter_json_files"
   },
   "Aarogya_Health_API": {
@@ -530,7 +530,7 @@
     "path": "Aarogya_Health_API.json"
   },
   "cibil": {
-    "file_hash": "ea20d889ff86da98a718fc4a455b4cce",
+    "file_hash": "0cbbdbb705b12f8fc7b7e86a127099e1",
     "embedding": [
       -0.018579338,
       0.015294728,
@@ -1049,7 +1049,6 @@
     "name": "TransUnion CIBIL Bureau",
     "category": "bureau",
     "versions": [
-      "v2",
       "v3"
     ],
     "path": "cibil.json"
